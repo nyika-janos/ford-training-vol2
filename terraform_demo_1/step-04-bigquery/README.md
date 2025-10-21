@@ -77,6 +77,8 @@ terraform destroy
 ## ➡️ Következő lépés
 👉 `step-05-iam/`
 
+---
+
 ## 🎯 **Összefoglalva - Step 04 fájlok:**
 
 ```

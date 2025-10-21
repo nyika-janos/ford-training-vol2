@@ -71,6 +71,8 @@ terraform destroy
 ## ➡️ Következő lépés
 👉 `step-04-bigquery/`
 
+---
+
 ## 🎯 **Összefoglalva - Step 03 fájlok:**
 
 ```

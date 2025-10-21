@@ -108,6 +108,7 @@ Befejezted a Terraform GCP training-et!
 - Nézz utána Terraform modules-nak
 - Próbálj ki remote state-et (GCS backend)
 
+---
 
 ## 🎯 **Összefoglalva - Step 05 fájlok:**
 

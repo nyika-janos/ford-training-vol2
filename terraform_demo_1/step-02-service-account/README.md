@@ -76,6 +76,8 @@ terraform destroy
 ## ➡️ Következő lépés
 👉 `step-03-storage/`
 
+---
+
 ## 🎯 **Összefoglalva - Step 02 fájlok:**
 
 ```
