@@ -1,5 +1,3 @@
-# Install & Setup Terraform and create Bucket, Dataset, Service Account
-
 ## 1. GCP CloudShell indítása
 
 ---
