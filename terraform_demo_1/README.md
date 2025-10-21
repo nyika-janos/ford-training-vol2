@@ -1,4 +1,4 @@
-# ford-training-vol2
+# Install & Setup Terraform and create Bucket, Dataset, Service Account
 
 ## 1. GCP CloudShell indítása
 
@@ -11,7 +11,7 @@
 mkdir -p ~/bin
 cd ~/bin
 
-# Töltsd le a legújabb Terraform verziót (pl. 1.9.8, ellenőrizheted a releases oldalon)
+# Töltsd le a legújabb Terraform verziót (pl. 1.13.4, ellenőrizheted a releases oldalon)
 wget https://releases.hashicorp.com/terraform/1.13.4/terraform_1.13.4_linux_amd64.zip
 
 # Csomagold ki

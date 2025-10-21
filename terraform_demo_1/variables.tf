@@ -8,6 +8,26 @@ variable "user_name" {
   default     = "Henry Ford"
 }
 
+variable "environment" {
+  description = "The environment name - must be 'demo'"
+  type        = string
+
+  validation {
+    condition     = var.environment == "demo"
+    error_message = "The environment must be 'demo' for this training exercise."
+  }
+}
+
+variable "debug" {
+  description = "Set debug flag"
+  type        = bool
+
+  validation {
+    condition     = can(var.debug == true || var.debug == false)
+    error_message = "Debug must be a boolean value (true or false)."
+  }
+}
+
 variable "region" {
   description = "The default region for resources"
   default     = "europe-west1"
