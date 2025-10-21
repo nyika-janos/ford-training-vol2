@@ -75,3 +75,15 @@ terraform destroy
 
 ## ➡️ Következő lépés
 👉 `step-03-storage/`
+
+## 🎯 **Összefoglalva - Step 02 fájlok:**
+
+```
+step-02-service-account/
+├── README.md
+├── providers.tf
+├── variables.tf
+├── locals.tf          ← ÚJ!
+├── main.tf            ← ÚJ!
+├── outputs.tf         ← ÚJ!
+└── terraform.tfvars.example

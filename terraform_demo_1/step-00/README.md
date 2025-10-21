@@ -34,7 +34,7 @@ Console -> IAM -> Service Accounts -> terraform@ford-training-430008.iam.gservic
 
 ---
 
-## 4. SA kulcs felmásolása a CloudShellbe `/home/<user_home>/` pathra
+## 4. SA kulcs felmásolása a CloudShellbe `/home/<user_home>/` pathra `sa-key.json` néven
 
 ---
 

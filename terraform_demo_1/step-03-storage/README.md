@@ -70,3 +70,15 @@ terraform destroy
 
 ## ➡️ Következő lépés
 👉 `step-04-bigquery/`
+
+## 🎯 **Összefoglalva - Step 03 fájlok:**
+
+```
+step-03-storage/
+├── README.md
+├── providers.tf
+├── variables.tf
+├── locals.tf
+├── main.tf            ← BŐVÜLT (SA + Bucket)
+├── outputs.tf         ← BŐVÜLT (2 output)
+└── terraform.tfvars.example

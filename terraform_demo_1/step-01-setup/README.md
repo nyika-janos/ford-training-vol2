@@ -51,3 +51,12 @@ Kimenet: `No changes. Your infrastructure matches the configuration.`
 
 ## ➡️ Következő lépés
 👉 `step-02-service-account/`
+
+## 🎯 **Összefoglalva - Step 01 fájlok:**
+
+```
+step-01-setup/
+├── README.md
+├── providers.tf
+├── variables.tf
+└── terraform.tfvars.example
