@@ -75,4 +75,3 @@ terraform destroy
 
 ## ➡️ Következő lépés
 👉 `step-03-storage/`
-```
