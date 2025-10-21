@@ -272,6 +272,6 @@ Ha végigcsináltad az összes lépést, készen állsz a Terraform használatá
 
 ---
 
-**Készítette:** Training Team  
+**Készítette:** Nyika János - Nextent Training Team  
 **Verzió:** 1.0  
 **Utolsó frissítés:** 2025
