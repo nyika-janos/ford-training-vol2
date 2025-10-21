@@ -26,6 +26,9 @@ source ~/.bashrc
 
 # Ellenőrizd
 terraform -version
+
+# Vissza a home-ba
+cd ~
 ```
 
 ---
@@ -45,7 +48,11 @@ Másold fel a letöltött kulcsfájlt a CloudShell `/home/<user_home>/` pathra `
 ## 5. GitHub repo klónozása
 
 ```bash
+# Klónozd a repository-t
 git clone https://github.com/nyika-janos/ford-training-vol2.git
+
+# Lépj be a terraform demo könyvtárba
+cd ford-training-vol2/terraform_demo_1
 ```
 
 ---
