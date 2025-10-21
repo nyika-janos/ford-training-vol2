@@ -54,7 +54,10 @@ GitHub -> Profile -> Settings -> Developer settings -> Personal access tokens ->
 
 ---
 
-## 7. git init
+## 7. git inicializálása
+```bash
+git init
+```
 
 ---
 
@@ -62,12 +65,24 @@ GitHub -> Profile -> Settings -> Developer settings -> Personal access tokens ->
 
 ---
 
-## 9. Fájlok áttekintése a `/home/<user_name>/ford-training-vol2/terraform_demo_1` folderben
+## 9. FCheck files
+
+fájlok áttekintése a 
+```bash
+`/home/<user_name>/ford-training-vol2/terraform_demo_1`
+```
+folderben
 
 ---
 
-## 10. terraform init
+## 10. Terreform inicializálás, provider beállítás
+```bash
+terraform init
+```
 
 ---
 
-## 11. terraform plan
+## 11. Terraform ellenőrzés
+```bash
+terraform plan
+```
