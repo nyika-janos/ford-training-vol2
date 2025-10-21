@@ -42,40 +42,42 @@ Console -> IAM -> Service Accounts -> terraform@ford-training-430008.iam.gservic
 
 ## 5. GitHub repo klónozása
 
-https://github.com/nyika-janos/ford-training-vol2/tree/main
-
-**Ha kell:**
+```bash
+git clone https://github.com/nyika-janos/ford-training-vol2/tree/main
+```
 
 ---
 
-## 6. GitHub Personal Access Token generálás
+## 6. (Opcionális) GitHub Personal Access Token generálás
 
 GitHub -> Profile -> Settings -> Developer settings -> Personal access tokens -> Tokens (classic) -> Generate new token (classic) -> Password -> Note: "GCP usage", tick all -> Generate token -> Save
 
 ---
 
-## 7. git inicializálása
+## 7. (Opcionális) Git inicializálása
+
 ```bash
 git init
 ```
 
 ---
 
-## 8. Add user.email & token (when asks for password)
+## 8. (Opcionális) Add user.email & token (when asks for password)
 
 ---
 
-## 9. FCheck files
+## 9. Fájlok ellenőrzése
 
-fájlok áttekintése a 
+Fájlok áttekintése a 
 ```bash
-`/home/<user_name>/ford-training-vol2/terraform_demo_1`
+/home/<user_name>/ford-training-vol2/terraform_demo_1/
 ```
 folderben
 
 ---
 
 ## 10. Terreform inicializálás, provider beállítás
+
 ```bash
 terraform init
 ```
@@ -83,6 +85,7 @@ terraform init
 ---
 
 ## 11. Terraform ellenőrzés
+
 ```bash
 terraform plan
 ```
