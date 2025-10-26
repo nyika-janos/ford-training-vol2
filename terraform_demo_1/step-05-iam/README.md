@@ -3,19 +3,51 @@
 ## 🎯 Cél
 IAM jogosultságok hozzáadása a Service Account-nak a Bucket-re és Dataset-re.
 
-## 📦 Mit hozunk létre?
-- ✅ 1x Service Account
-- ✅ 1x Storage Bucket
-- ✅ 1x BigQuery Dataset
-- ✅ 1x BigQuery Table
+## ⚠️ **FONTOS: Előfeltételek**
+
+**Step-02, Step-03 ÉS Step-04 resource-ainak létezniük KELL!**
+
+Ha még nem futtattad le őket:
+```bash
+# Step-02
+cd ../step-02-service-account/
+terraform apply
+
+# Step-03
+cd ../step-03-storage/
+terraform apply
+
+# Step-04
+cd ../step-04-bigquery/
+terraform apply
+```
+
+**NE futtass `terraform destroy`-t az előző step-ekben!**
+
+---
+
+## 📦 Mit hoz létre ez a step?
+
+### ÚJ resource-ok (step-05 specifikusak):
 - ✅ 1x Storage IAM Binding (Object Admin)
 - ✅ 1x BigQuery IAM Binding (Data Editor)
 
-**Összesen: 6 resource**
+**Összesen: 2 ÚJ resource**
+
+### Már létező resource-ok (data sources):
+- 📌 Service Account (step-02-ből)
+- 📌 Storage Bucket (step-03-ból)
+- 📌 BigQuery Dataset (step-04-ből)
+- 📌 BigQuery Log Table (step-04-ből)
+- 📌 BigQuery Raw Data Table (step-04-ből)
+
+---
 
 ## 🔐 IAM Roles
 - **Storage Bucket:** `roles/storage.objectAdmin` (teljes RW jogosultság az objektumokra)
 - **BigQuery Dataset:** `roles/bigquery.dataEditor` (RW jogosultság az adatokra)
+
+---
 
 ## 📝 Lépések
 
@@ -35,6 +67,8 @@ user_name   = "Gipsz Jakab"
 environment = "demo"
 ```
 
+⚠️ **FONTOS:** Ugyanazt a `user_name`-t használd, mint az előző step-ekben!
+
 ### 4. Terraform inicializálás
 ```bash
 terraform init
@@ -45,7 +79,9 @@ terraform init
 terraform plan
 ```
 
-Kimenet: `Plan: 6 to add, 0 to change, 0 to destroy.`
+Kimenet: `Plan: 2 to add, 0 to change, 0 to destroy.`
+
+✅ **Ellenőrizd:** Csak **2 ÚJ** resource-ot hoz létre (nem 6-ot)!
 
 ### 6. Apply (létrehozás)
 ```bash
@@ -57,10 +93,16 @@ terraform apply
 terraform output
 ```
 
+---
+
 ## 📤 Outputs
-- `service_account_email`
-- `bucket_name`
-- `dataset_id`
+- `service_account_email` - Service Account email (data source, step-02-ből)
+- `bucket_name` - Storage Bucket neve (data source, step-03-ból)
+- `dataset_id` - BigQuery dataset ID (data source, step-04-ből)
+- `log_table_id` - Log tábla ID (data source, step-04-ből)
+- `raw_data_table_id` - Raw data tábla ID (data source, step-04-ből)
+
+---
 
 ## 🔍 IAM ellenőrzése GCP Console-ban
 
@@ -76,37 +118,68 @@ terraform output
 3. **Sharing** → **Permissions**
 4. Keresd meg a Service Account-ot → Role: `BigQuery Data Editor`
 
+---
+
 ## 🗑️ Cleanup
+
+**Csak a step-05 resource-ok törlése:**
 ```bash
 terraform destroy
 ```
 
-**FONTOS:** A destroy először az IAM binding-okat törli, majd a resource-okat, végül a Service Account-ot.
+Ez NEM törli:
+- Service Account (step-02)
+- Storage Bucket (step-03)
+- BigQuery Dataset és Tables (step-04)
+
+**Teljes cleanup (fordított sorrendben):**
+```bash
+# 1. Step-05 IAM bindings
+cd step-05-iam/
+terraform destroy
+
+# 2. Step-04 BigQuery
+cd ../step-04-bigquery/
+terraform destroy
+
+# 3. Step-03 Storage
+cd ../step-03-storage/
+terraform destroy
+
+# 4. Step-02 Service Account
+cd ../step-02-service-account/
+terraform destroy
+```
+
+---
 
 ## 📚 Mit tanultunk?
+- ✅ **Data source** használata (már létező resource-okra hivatkozás)
 - ✅ IAM binding-ok kezelése
 - ✅ Service Account jogosultságok
-- ✅ Resource dependencies (IAM függ SA-tól és resource-tól)
+- ✅ Resource dependencies
 - ✅ Role-ok típusai (storage.objectAdmin, bigquery.dataEditor)
 - ✅ Member formátum: `serviceAccount:${email}`
+- ✅ Multi-step Terraform projektek
+
+---
 
 ## 🎓 Gratulálunk! 🎉
 
-Befejezted a Terraform GCP training-et!
+Befejezted az első 5 lépését a Terraform GCP training-nek!
 
 ### Mit tanultál?
 1. ✅ Terraform alapok (init, plan, apply, destroy)
 2. ✅ Provider konfiguráció
 3. ✅ Variables és locals használata
-4. ✅ Resource létrehozás és függőségek
+4. ✅ Resource létrehozás és data sources
 5. ✅ Outputs kezelése
 6. ✅ IAM jogosultságok
 
-### Következő lépések:
-- Próbálj ki más GCP resource-okat (Cloud Function, Pub/Sub, etc.)
-- Tanulj módosításokról (resource frissítés)
-- Nézz utána Terraform modules-nak
-- Próbálj ki remote state-et (GCS backend)
+---
+
+## ➡️ Következő lépés
+👉 `step-06-cloud-function-processor/` - Cloud Function és Pub/Sub
 
 ---
 
@@ -121,18 +194,3 @@ step-05-iam/
 ├── main.tf            ← BŐVÜLT (Minden + IAM bindings)
 ├── outputs.tf
 └── terraform.tfvars.example
-```
-
-**7 fájl összesen** ✅
-
----
-
-## 🎊 **KÉSZ! Minden Step elkészült!**
-
-```
-terraform_demo_1/
-├── step-01-setup/           (4 fájl)
-├── step-02-service-account/ (7 fájl)
-├── step-03-storage/         (7 fájl)
-├── step-04-bigquery/        (7 fájl)
-└── step-05-iam/             (7 fájl)

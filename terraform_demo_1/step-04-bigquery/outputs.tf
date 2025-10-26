@@ -1,11 +1,11 @@
 output "service_account_email" {
-  value       = google_service_account.demo_sa.email
-  description = "The email address of the created Service Account"
+  value       = data.google_service_account.demo_sa.email
+  description = "The email address of the Service Account (from step-02)"
 }
 
 output "bucket_name" {
-  value       = google_storage_bucket.demo_bucket.name
-  description = "The name of the created Storage Bucket"
+  value       = data.google_storage_bucket.demo_bucket.name
+  description = "The name of the Storage Bucket (from step-03)"
 }
 
 output "dataset_id" {

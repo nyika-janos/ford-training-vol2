@@ -3,14 +3,39 @@
 ## 🎯 Cél
 BigQuery Dataset és két Table hozzáadása (log és raw_data táblák).
 
-## 📦 Mit hozunk létre?
-- ✅ 1x Service Account
-- ✅ 1x Storage Bucket
-- ✅ 1x BigQuery Dataset
-- ✅ 1x BigQuery Log Table (6 oszlop: timestamp, log_level, message, stb.)
-- ✅ 1x BigQuery Raw Data Table (18 oszlop: superstore adatokhoz)
+## ⚠️ **FONTOS: Előfeltételek**
 
-**Összesen: 5 resource**
+**Step-02 ÉS Step-03 resource-ainak létezniük KELL!**
+
+Ha még nem futtattad le őket:
+```bash
+# Step-02
+cd ../step-02-service-account/
+terraform apply
+
+# Step-03
+cd ../step-03-storage/
+terraform apply
+```
+
+**NE futtass `terraform destroy`-t a step-02 vagy step-03-ban!**
+
+---
+
+## 📦 Mit hoz létre ez a step?
+
+### ÚJ resource-ok (step-04 specifikusak):
+- ✅ 1x BigQuery Dataset
+- ✅ 1x BigQuery Log Table (6 oszlop)
+- ✅ 1x BigQuery Raw Data Table (18 oszlop)
+
+**Összesen: 3 ÚJ resource**
+
+### Már létező resource-ok (data sources):
+- 📌 Service Account (step-02-ből)
+- 📌 Storage Bucket (step-03-ból)
+
+---
 
 ## 📝 Lépések
 
@@ -30,6 +55,8 @@ user_name   = "Gipsz Jakab"
 environment = "demo"
 ```
 
+⚠️ **FONTOS:** Ugyanazt a `user_name`-t használd, mint a step-02 és step-03-ban!
+
 ### 4. Terraform inicializálás
 ```bash
 terraform init
@@ -40,7 +67,9 @@ terraform init
 terraform plan
 ```
 
-Kimenet: `Plan: 5 to add, 0 to change, 0 to destroy.`
+Kimenet: `Plan: 3 to add, 0 to change, 0 to destroy.`
+
+✅ **Ellenőrizd:** Csak **3 ÚJ** resource-ot hoz létre (nem 5-öt)!
 
 ### 6. Apply (létrehozás)
 ```bash
@@ -52,12 +81,16 @@ terraform apply
 terraform output
 ```
 
+---
+
 ## 📤 Outputs
-- `service_account_email` - A Service Account email címe
-- `bucket_name` - A Storage Bucket neve
-- `dataset_id` - A BigQuery dataset azonosítója
-- `log_table_id` - A log tábla azonosítója
-- `raw_data_table_id` - A raw data tábla azonosítója
+- `service_account_email` - A Service Account email címe (data source, step-02-ből)
+- `bucket_name` - A Storage Bucket neve (data source, step-03-ból)
+- `dataset_id` - A BigQuery dataset azonosítója (**ÚJ**)
+- `log_table_id` - A log tábla azonosítója (**ÚJ**)
+- `raw_data_table_id` - A raw data tábla azonosítója (**ÚJ**)
+
+---
 
 ## 🔍 BigQuery ellenőrzése GCP Console-ban
 
@@ -78,24 +111,8 @@ terraform output
 ### Raw Data Table:
 5. Nézd meg a `{your-name}-raw-data-table` táblát
 6. Schema: 18 oszlop superstore adatokhoz
-   - `row_id` (INTEGER) - Sor ID
-   - `order_id` (STRING) - Rendelés ID
-   - `order_date` (DATE) - Rendelés dátuma
-   - `ship_date` (DATE) - Szállítás dátuma
-   - `ship_mode` (STRING) - Szállítási mód
-   - `customer_id` (STRING) - Ügyfél ID
-   - `customer_name` (STRING) - Ügyfél neve
-   - `segment` (STRING) - Szegmens
-   - `country` (STRING) - Ország
-   - `city` (STRING) - Város
-   - `state` (STRING) - Állam
-   - `postal_code` (FLOAT) - Irányítószám
-   - `region` (STRING) - Régió
-   - `product_id` (STRING) - Termék ID
-   - `category` (STRING) - Kategória
-   - `sub_category` (STRING) - Alkategória
-   - `product_name` (STRING) - Termék neve
-   - `sales` (FLOAT) - Eladási érték
+
+---
 
 ## 💡 Adatok betöltése (példa)
 
@@ -116,19 +133,30 @@ VALUES
 6. **Auto detect:** Schema and input parameters
 7. **Create table**
 
+---
+
 ## 🗑️ Cleanup
+
+**Csak a step-04 resource-ok törlése:**
 ```bash
 terraform destroy
 ```
 
+Ez NEM törli:
+- Service Account (step-02)
+- Storage Bucket (step-03)
+
+---
+
 ## 📚 Mit tanultunk?
-- ✅ BigQuery resource-ok kezelése
+- ✅ **Data source** használata (már létező resource-okra hivatkozás)
+- ✅ BigQuery Dataset létrehozás
 - ✅ Több tábla létrehozása egy dataset-ben
 - ✅ Részletes JSON schema definíció
 - ✅ DATE és TIMESTAMP típusok használata
-- ✅ Resource dependencies (táblák függnek dataset-től)
-- ✅ Különböző naming conventions (underscore vs hyphen)
-- ✅ Schema description-ök használata
+- ✅ Multi-step Terraform projektek
+
+---
 
 ## ➡️ Következő lépés
 👉 `step-05-iam/`

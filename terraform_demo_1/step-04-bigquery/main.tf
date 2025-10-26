@@ -1,23 +1,17 @@
 # ============================================================================
-# STEP 2: Service Account létrehozása
+# DATA SOURCES - Már létező resource-ok (step-02 és step-03-ból)
 # ============================================================================
 
-resource "google_service_account" "demo_sa" {
-  account_id   = "terraform-demo-sa-${local.name_with_hyphen}"
-  display_name = "Terraform Demo Service Account for ${var.user_name}"
+data "google_service_account" "demo_sa" {
+  account_id = "terraform-demo-sa-${local.name_with_hyphen}"
+}
+
+data "google_storage_bucket" "demo_bucket" {
+  name = "${var.project_id}-${local.name_with_hyphen}-demo-bucket"
 }
 
 # ============================================================================
-# STEP 3: Storage bucket létrehozása
-# ============================================================================
-
-resource "google_storage_bucket" "demo_bucket" {
-  name     = "${var.project_id}-${local.name_with_hyphen}-demo-bucket"
-  location = var.region
-}
-
-# ============================================================================
-# STEP 4: BigQuery dataset és tables
+# STEP 4: ÚJ resource-ok - BigQuery dataset és tables
 # ============================================================================
 
 resource "google_bigquery_dataset" "demo_dataset" {
