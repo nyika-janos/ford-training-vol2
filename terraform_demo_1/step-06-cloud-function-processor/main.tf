@@ -25,7 +25,7 @@ data "google_bigquery_table" "raw_data_table" {
 }
 
 # ============================================================================
-# STEP 6: ÚJ resource-ok - Pub/Sub Topic és Cloud Function
+# STEP 6: ÚJ resource-ok - Pub/Sub Topic és Cloud Function Gen2
 # ============================================================================
 
 # Pub/Sub Topic
@@ -40,7 +40,7 @@ resource "google_project_iam_member" "pubsub_publisher" {
   member  = "serviceAccount:${data.google_service_account.demo_sa.email}"
 }
 
-# Storage bucket a Cloud Function kódjának (ez EGY ÚJ bucket, nem a demo bucket!)
+# Storage bucket a Cloud Function kódjának
 resource "google_storage_bucket" "function_bucket" {
   name     = "${var.project_id}-${local.name_with_hyphen}-function-source"
   location = var.region
@@ -60,36 +60,47 @@ resource "google_storage_bucket_object" "function_zip" {
   source = data.archive_file.function_source.output_path
 }
 
-# Cloud Function
-resource "google_cloudfunctions_function" "file_processor" {
+# Cloud Function Gen2
+resource "google_cloudfunctions2_function" "file_processor" {
   name        = "${local.name_with_hyphen}-file-processor"
-  description = "Processes files from Google Drive"
-  runtime     = "python39"
+  location    = var.region
+  description = "Processes files from Google Drive (Gen2)"
 
-  available_memory_mb   = 256
-  source_archive_bucket = google_storage_bucket.function_bucket.name
-  source_archive_object = google_storage_bucket_object.function_zip.name
-  trigger_http          = true
-  entry_point           = "process_file"
+  build_config {
+    runtime     = "python312"
+    entry_point = "process_file"
+    source {
+      storage_source {
+        bucket = google_storage_bucket.function_bucket.name
+        object = google_storage_bucket_object.function_zip.name
+      }
+    }
+  }
 
-  service_account_email = data.google_service_account.demo_sa.email
+  service_config {
+    max_instance_count    = 3
+    min_instance_count    = 0
+    available_memory      = "256M"
+    timeout_seconds       = 60
+    service_account_email = data.google_service_account.demo_sa.email
 
-  environment_variables = {
-    PROJECT_ID        = var.project_id
-    BUCKET_NAME       = data.google_storage_bucket.demo_bucket.name
-    DATASET_ID        = data.google_bigquery_dataset.demo_dataset.dataset_id
-    LOG_TABLE_ID      = data.google_bigquery_table.log_table.table_id
-    RAW_DATA_TABLE_ID = data.google_bigquery_table.raw_data_table.table_id
-    PUBSUB_TOPIC      = google_pubsub_topic.demo_topic.id
+    environment_variables = {
+      PROJECT_ID        = var.project_id
+      BUCKET_NAME       = data.google_storage_bucket.demo_bucket.name
+      DATASET_ID        = data.google_bigquery_dataset.demo_dataset.dataset_id
+      LOG_TABLE_ID      = data.google_bigquery_table.log_table.table_id
+      RAW_DATA_TABLE_ID = data.google_bigquery_table.raw_data_table.table_id
+      PUBSUB_TOPIC      = google_pubsub_topic.demo_topic.id
+    }
   }
 }
 
-# Allow unauthenticated invocations (Drive webhook használja majd)
-resource "google_cloudfunctions_function_iam_member" "invoker" {
-  project        = google_cloudfunctions_function.file_processor.project
-  region         = google_cloudfunctions_function.file_processor.region
-  cloud_function = google_cloudfunctions_function.file_processor.name
+# Allow unauthenticated invocations (Gen2 uses Cloud Run IAM)
+resource "google_cloud_run_service_iam_member" "invoker" {
+  project  = google_cloudfunctions2_function.file_processor.project
+  location = google_cloudfunctions2_function.file_processor.location
+  service  = google_cloudfunctions2_function.file_processor.name
 
-  role   = "roles/cloudfunctions.invoker"
+  role   = "roles/run.invoker"
   member = "allUsers"
 }

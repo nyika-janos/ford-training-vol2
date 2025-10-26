@@ -1,7 +1,7 @@
-# Step 06: Cloud Function File Processor
+# Step 06: Cloud Function Gen2 File Processor
 
 ## 🎯 Cél
-Pub/Sub topic és Cloud Function létrehozása, ami feldolgozza a Drive-ból érkező fájlokat.
+Pub/Sub topic és **Cloud Function Gen2** létrehozása, ami feldolgozza a Drive-ból érkező fájlokat.
 
 ## ⚠️ **FONTOS: Előfeltételek**
 
@@ -24,10 +24,10 @@ cd ../step-05-iam/ && terraform apply
 ### ÚJ resource-ok (step-06 specifikusak):
 - ✅ 1x Pub/Sub Topic
 - ✅ 1x Pub/Sub Publisher IAM Binding (PROJECT szintű)
-- ✅ 1x Storage Bucket (Cloud Function forráskódjához - EGY ÚJ bucket!)
+- ✅ 1x Storage Bucket (Cloud Function forráskódjához)
 - ✅ 1x Storage Bucket Object (function ZIP fájl)
-- ✅ 1x Cloud Function (HTTP trigger)
-- ✅ 1x Cloud Function Invoker IAM Binding
+- ✅ 1x **Cloud Function Gen2** (HTTP trigger, Python 3.12)
+- ✅ 1x Cloud Run Service IAM Binding (Gen2 invoker)
 
 **Összesen: 6 ÚJ resource**
 
@@ -37,8 +37,17 @@ cd ../step-05-iam/ && terraform apply
 - 📌 BigQuery Dataset (step-04-ből)
 - 📌 BigQuery Log Table (step-04-ből)
 - 📌 BigQuery Raw Data Table (step-04-ből)
-- 📌 Storage IAM Binding (step-05-ből - implicit)
-- 📌 BigQuery IAM Binding (step-05-ből - implicit)
+
+---
+
+## 🚀 Cloud Function Gen2 Előnyök
+
+- ✅ **Cloud Run alapú** - modernebb architektúra
+- ✅ **Python 3.12** - legújabb Python verzió
+- ✅ **Hosszabb timeout** - max 60 perc (Gen1: 9 perc)
+- ✅ **Több memória** - akár 32GB (Gen1: 8GB)
+- ✅ **Jobb scaling** - 0-1000 instance
+- ✅ **Gyorsabb cold start**
 
 ---
 
@@ -64,8 +73,8 @@ cd step-06-cloud-function-processor/
 ### 2. Cloud Function kód ellenőrzése
 
 A `function_source/` könyvtárban találod:
-- `main.py` - Cloud Function Python kód
-- `requirements.txt` - Python függőségek
+- `main.py` - Cloud Function Python 3.12 kód
+- `requirements.txt` - Frissített Python függőségek
 
 ```bash
 ls -la function_source/
@@ -96,14 +105,14 @@ terraform plan
 
 Kimenet: `Plan: 6 to add, 0 to change, 0 to destroy.`
 
-✅ **Ellenőrizd:** Csak **6 ÚJ** resource-ot hoz létre (nem 11-et)!
+✅ **Ellenőrizd:** Csak **6 ÚJ** resource-ot hoz létre!
 
 ### 7. Apply (létrehozás)
 ```bash
 terraform apply
 ```
 
-⏱️ **Várható idő:** 2-3 perc (Cloud Function deployment)
+⏱️ **Várható idő:** 3-4 perc (Gen2 deployment lassabb mint Gen1)
 
 ### 8. Ellenőrzés
 ```bash
@@ -119,18 +128,19 @@ terraform output
 - `log_table_id` - Log tábla ID (data source, step-04-ből)
 - `raw_data_table_id` - Raw data tábla ID (data source, step-04-ből)
 - `pubsub_topic_name` - Pub/Sub topic neve (**ÚJ**)
-- `cloud_function_url` - **Cloud Function HTTP URL** (**ÚJ** - ezt használja majd a Drive webhook!)
+- `cloud_function_url` - **Cloud Function Gen2 HTTPS URL** (**ÚJ** - ezt használja majd a Drive webhook!)
 
 ---
 
 ## 🔍 Cloud Function ellenőrzése GCP Console-ban
 
-### Cloud Function:
-1. GCP Console → Cloud Functions
+### Cloud Function Gen2:
+1. GCP Console → **Cloud Functions** (Gen2 címke látszik)
 2. Keresd meg: `{your-name}-file-processor`
-3. **TRIGGER** fül → **Trigger URL** (ez az outputs-ban is szerepel)
+3. **TRIGGER** fül → **TRIGGER URL** (ez az outputs-ban is szerepel)
 4. **SOURCE** fül → Nézd meg a Python kódot
 5. **LOGS** fül → Ide jönnek a function logok
+6. **METRICS** fül → Gen2 metrics (invocations, memory, CPU)
 
 ### Pub/Sub Topic:
 1. GCP Console → Pub/Sub → Topics
@@ -178,14 +188,13 @@ Ez NEM törli:
 
 ## 📚 Mit tanultunk?
 
-- ✅ **Data source** használata (már létező resource-okra hivatkozás)
+- ✅ **Data source** használata
+- ✅ **Cloud Functions Gen2** deployment
+- ✅ **Python 3.12** használata
+- ✅ Cloud Run IAM binding (Gen2 alapú)
 - ✅ Pub/Sub Topic létrehozása
-- ✅ Cloud Function deployment Terraform-mel
-- ✅ Cloud Function source code packaging (ZIP)
-- ✅ HTTP triggered Cloud Function
-- ✅ Service Account használata Cloud Function-ben
+- ✅ Function source code packaging (ZIP)
 - ✅ Multi-step Terraform projektek
-- ✅ Külön bucket a function kódjához
 
 ---
 
@@ -197,19 +206,19 @@ A Cloud Function a demo Service Account-tal fut, aminek már van (step-05-ből):
 
 És most hozzáadtuk (step-06-ban):
 - ✅ **Pub/Sub Publisher** (PROJECT szintű - message küldés)
+- ✅ **Cloud Run Invoker** (Gen2 function hívás - allUsers)
 
 ---
 
 ## ⚠️ Fontos megjegyzések
 
-- A Cloud Function **HTTP trigger**-rel rendelkezik (nem auth required)
-- A function kód a `function_source/` könyvtárban van
+- **Cloud Functions Gen2** használ (Cloud Run alapú)
+- **Python 3.12** runtime
+- A function **HTTP trigger**-rel rendelkezik (nem auth required)
+- Gen2 IAM: **Cloud Run Service IAM** (nem Cloud Functions IAM)
 - A Terraform automatikusan ZIP-eli és feltölti a kódot
 - A function URL-t használjuk majd a Step-07-ben (Drive webhook regisztráció)
 - **Ez a step data source-okat használ** - nem hozza létre újra a már létező resource-okat!
-- **Két különböző bucket van**: 
-  - Adatok bucket (step-03)
-  - Function forráskód bucket (step-06) - ÚJ!
 
 ---
 

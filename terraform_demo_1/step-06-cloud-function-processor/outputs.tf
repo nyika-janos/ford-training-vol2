@@ -29,6 +29,6 @@ output "pubsub_topic_name" {
 }
 
 output "cloud_function_url" {
-  value       = google_cloudfunctions_function.file_processor.https_trigger_url
-  description = "The Cloud Function HTTPS trigger URL (használd a Drive webhook-ban!)"
+  value       = google_cloudfunctions2_function.file_processor.service_config[0].uri
+  description = "The Cloud Function Gen2 HTTPS trigger URL (használd a Drive webhook-ban!)"
 }
