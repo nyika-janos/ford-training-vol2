@@ -12,3 +12,13 @@ output "dataset_id" {
   value       = google_bigquery_dataset.demo_dataset.dataset_id
   description = "The BigQuery dataset ID"
 }
+
+output "log_table_id" {
+  value       = google_bigquery_table.log_table.table_id
+  description = "The BigQuery log table ID"
+}
+
+output "raw_data_table_id" {
+  value       = google_bigquery_table.raw_data_table.table_id
+  description = "The BigQuery raw data table ID"
+}

@@ -8,7 +8,7 @@ resource "google_service_account" "demo_sa" {
 }
 
 # ============================================================================
-# STEP 3: Storage bucket létrehozása
+# STEP 3: Storage bucket létrehozása (adatok tárolására)
 # ============================================================================
 
 resource "google_storage_bucket" "demo_bucket" {
@@ -25,7 +25,6 @@ resource "google_bigquery_dataset" "demo_dataset" {
   location   = var.region
 }
 
-# Log table - alkalmazás log-ok tárolására
 resource "google_bigquery_table" "log_table" {
   dataset_id = google_bigquery_dataset.demo_dataset.dataset_id
   table_id   = "${local.name_with_hyphen}-log-table"
@@ -70,7 +69,6 @@ resource "google_bigquery_table" "log_table" {
   ])
 }
 
-# Raw data table - superstore adatok tárolására
 resource "google_bigquery_table" "raw_data_table" {
   dataset_id = google_bigquery_dataset.demo_dataset.dataset_id
   table_id   = "${local.name_with_hyphen}-raw-data-table"
@@ -185,4 +183,90 @@ resource "google_bigquery_table" "raw_data_table" {
       description = "Eladási érték"
     }
   ])
+}
+
+# ============================================================================
+# STEP 5: IAM ROLE BINDINGS
+# ============================================================================
+
+resource "google_storage_bucket_iam_member" "bucket_admin" {
+  bucket = google_storage_bucket.demo_bucket.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.demo_sa.email}"
+}
+
+resource "google_bigquery_dataset_iam_member" "dataset_editor" {
+  dataset_id = google_bigquery_dataset.demo_dataset.dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${google_service_account.demo_sa.email}"
+}
+
+# ============================================================================
+# STEP 6: Pub/Sub Topic és Cloud Function
+# ============================================================================
+
+# Pub/Sub Topic
+resource "google_pubsub_topic" "demo_topic" {
+  name = "${local.name_with_hyphen}-demo-topic-raw"
+}
+
+# Pub/Sub Publisher role a Service Account-nak
+resource "google_project_iam_member" "pubsub_publisher" {
+  project = var.project_id
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:${google_service_account.demo_sa.email}"
+}
+
+# Storage bucket a Cloud Function kódjának
+resource "google_storage_bucket" "function_bucket" {
+  name     = "${var.project_id}-${local.name_with_hyphen}-function-source"
+  location = var.region
+}
+
+# ZIP-eljük a function source code-ot
+data "archive_file" "function_source" {
+  type        = "zip"
+  source_dir  = "${path.module}/function_source"
+  output_path = "${path.module}/function_source.zip"
+}
+
+# Feltöltjük a ZIP-et a bucket-be
+resource "google_storage_bucket_object" "function_zip" {
+  name   = "function-source-${data.archive_file.function_source.output_md5}.zip"
+  bucket = google_storage_bucket.function_bucket.name
+  source = data.archive_file.function_source.output_path
+}
+
+# Cloud Function
+resource "google_cloudfunctions_function" "file_processor" {
+  name        = "${local.name_with_hyphen}-file-processor"
+  description = "Processes files from Google Drive"
+  runtime     = "python39"
+
+  available_memory_mb   = 256
+  source_archive_bucket = google_storage_bucket.function_bucket.name
+  source_archive_object = google_storage_bucket_object.function_zip.name
+  trigger_http          = true
+  entry_point           = "process_file"
+
+  service_account_email = google_service_account.demo_sa.email
+
+  environment_variables = {
+    PROJECT_ID        = var.project_id
+    BUCKET_NAME       = google_storage_bucket.demo_bucket.name
+    DATASET_ID        = google_bigquery_dataset.demo_dataset.dataset_id
+    LOG_TABLE_ID      = google_bigquery_table.log_table.table_id
+    RAW_DATA_TABLE_ID = google_bigquery_table.raw_data_table.table_id
+    PUBSUB_TOPIC      = google_pubsub_topic.demo_topic.id
+  }
+}
+
+# Allow unauthenticated invocations (Drive webhook használja majd)
+resource "google_cloudfunctions_function_iam_member" "invoker" {
+  project        = google_cloudfunctions_function.file_processor.project
+  region         = google_cloudfunctions_function.file_processor.region
+  cloud_function = google_cloudfunctions_function.file_processor.name
+
+  role   = "roles/cloudfunctions.invoker"
+  member = "allUsers"
 }

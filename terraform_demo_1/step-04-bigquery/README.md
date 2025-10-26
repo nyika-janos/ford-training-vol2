@@ -1,15 +1,16 @@
-# Step 04: BigQuery Dataset & Table
+# Step 04: BigQuery Dataset & Tables
 
 ## 🎯 Cél
-BigQuery Dataset és Table hozzáadása.
+BigQuery Dataset és két Table hozzáadása (log és raw_data táblák).
 
 ## 📦 Mit hozunk létre?
 - ✅ 1x Service Account
 - ✅ 1x Storage Bucket
 - ✅ 1x BigQuery Dataset
-- ✅ 1x BigQuery Table (2 oszloppal: id, timestamp)
+- ✅ 1x BigQuery Log Table (6 oszlop: timestamp, log_level, message, stb.)
+- ✅ 1x BigQuery Raw Data Table (18 oszlop: superstore adatokhoz)
 
-**Összesen: 4 resource**
+**Összesen: 5 resource**
 
 ## 📝 Lépések
 
@@ -39,7 +40,7 @@ terraform init
 terraform plan
 ```
 
-Kimenet: `Plan: 4 to add, 0 to change, 0 to destroy.`
+Kimenet: `Plan: 5 to add, 0 to change, 0 to destroy.`
 
 ### 6. Apply (létrehozás)
 ```bash
@@ -55,12 +56,65 @@ terraform output
 - `service_account_email` - A Service Account email címe
 - `bucket_name` - A Storage Bucket neve
 - `dataset_id` - A BigQuery dataset azonosítója
+- `log_table_id` - A log tábla azonosítója
+- `raw_data_table_id` - A raw data tábla azonosítója
 
 ## 🔍 BigQuery ellenőrzése GCP Console-ban
+
+### Dataset:
 1. GCP Console → BigQuery
 2. Keresd meg a dataset-et: `{your_name}_demo_dataset`
-3. Nézd meg a table-t: `{your-name}-demo-table`
-4. Nézd meg a schema-t (2 oszlop: id, timestamp)
+
+### Log Table:
+3. Nézd meg a `{your-name}-log-table` táblát
+4. Schema:
+   - `timestamp` (TIMESTAMP, REQUIRED) - Log időpontja
+   - `log_level` (STRING, REQUIRED) - Log szint (INFO, WARNING, ERROR, DEBUG)
+   - `message` (STRING, REQUIRED) - Log üzenet
+   - `source` (STRING, NULLABLE) - Forrás (modul/komponens)
+   - `user_id` (STRING, NULLABLE) - Felhasználó ID
+   - `additional_info` (STRING, NULLABLE) - További info (JSON)
+
+### Raw Data Table:
+5. Nézd meg a `{your-name}-raw-data-table` táblát
+6. Schema: 18 oszlop superstore adatokhoz
+   - `row_id` (INTEGER) - Sor ID
+   - `order_id` (STRING) - Rendelés ID
+   - `order_date` (DATE) - Rendelés dátuma
+   - `ship_date` (DATE) - Szállítás dátuma
+   - `ship_mode` (STRING) - Szállítási mód
+   - `customer_id` (STRING) - Ügyfél ID
+   - `customer_name` (STRING) - Ügyfél neve
+   - `segment` (STRING) - Szegmens
+   - `country` (STRING) - Ország
+   - `city` (STRING) - Város
+   - `state` (STRING) - Állam
+   - `postal_code` (FLOAT) - Irányítószám
+   - `region` (STRING) - Régió
+   - `product_id` (STRING) - Termék ID
+   - `category` (STRING) - Kategória
+   - `sub_category` (STRING) - Alkategória
+   - `product_name` (STRING) - Termék neve
+   - `sales` (FLOAT) - Eladási érték
+
+## 💡 Adatok betöltése (példa)
+
+### Log Table-be:
+```sql
+INSERT INTO `{project_id}.{your_name}_demo_dataset.{your-name}-log-table`
+(timestamp, log_level, message, source, user_id, additional_info)
+VALUES
+(CURRENT_TIMESTAMP(), 'INFO', 'Application started', 'main.py', 'user123', '{"version": "1.0"}');
+```
+
+### Raw Data Table-be (CSV import):
+1. BigQuery Console → Dataset → Table
+2. **Create table from:** Upload
+3. **Select file:** superstore_final_dataset_1.csv
+4. **File format:** CSV
+5. **Table:** `{your-name}-raw-data-table`
+6. **Auto detect:** Schema and input parameters
+7. **Create table**
 
 ## 🗑️ Cleanup
 ```bash
@@ -69,10 +123,12 @@ terraform destroy
 
 ## 📚 Mit tanultunk?
 - ✅ BigQuery resource-ok kezelése
-- ✅ Nested resource (table a dataset-ben)
-- ✅ JSON schema definíció
-- ✅ Resource dependencies (table függ dataset-től)
+- ✅ Több tábla létrehozása egy dataset-ben
+- ✅ Részletes JSON schema definíció
+- ✅ DATE és TIMESTAMP típusok használata
+- ✅ Resource dependencies (táblák függnek dataset-től)
 - ✅ Különböző naming conventions (underscore vs hyphen)
+- ✅ Schema description-ök használata
 
 ## ➡️ Következő lépés
 👉 `step-05-iam/`
@@ -87,6 +143,6 @@ step-04-bigquery/
 ├── providers.tf
 ├── variables.tf
 ├── locals.tf
-├── main.tf            ← BŐVÜLT (SA + Bucket + BQ Dataset + Table)
+├── main.tf            ← BŐVÜLT (SA + Bucket + BQ Dataset + 2 BQ Table)
 ├── outputs.tf         ← BŐVÜLT (3 output)
 └── terraform.tfvars.example

@@ -22,3 +22,13 @@ output "raw_data_table_id" {
   value       = google_bigquery_table.raw_data_table.table_id
   description = "The BigQuery raw data table ID"
 }
+
+output "pubsub_topic_name" {
+  value       = google_pubsub_topic.demo_topic.name
+  description = "The Pub/Sub topic name"
+}
+
+output "cloud_function_url" {
+  value       = google_cloudfunctions_function.file_processor.https_trigger_url
+  description = "The Cloud Function HTTPS trigger URL (használd a Drive webhook-ban!)"
+}
