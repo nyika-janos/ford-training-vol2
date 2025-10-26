@@ -94,22 +94,48 @@ def download_from_drive(file_id, file_name):
         raise
 
 
-def upload_to_gcs(local_file_path, gcs_file_name):
-    """Upload file to Cloud Storage"""
+def upload_to_gcs(local_file_path, file_id, file_name):
+    """Upload file to Cloud Storage in processing folder"""
     try:
         client = storage.Client(project=PROJECT_ID)
         bucket = client.bucket(BUCKET_NAME)
+        
+        # Upload to processing folder
+        gcs_file_name = f"processing/{file_id}_{file_name}"
         blob = bucket.blob(gcs_file_name)
         
         blob.upload_from_filename(local_file_path)
         
-        log_to_bigquery("INFO", f"File uploaded to GCS: {gcs_file_name}")
+        log_to_bigquery("INFO", f"File uploaded to GCS processing folder: {gcs_file_name}")
         return f"gs://{BUCKET_NAME}/{gcs_file_name}"
         
     except Exception as e:
         log_to_bigquery("ERROR", f"Failed to upload to GCS: {e}")
         raise
 
+def move_to_processed_folder(file_id, file_name):
+    """Move file from processing to processed folder"""
+    try:
+        client = storage.Client(project=PROJECT_ID)
+        bucket = client.bucket(BUCKET_NAME)
+        
+        source_blob_name = f"processing/{file_id}_{file_name}"
+        dest_blob_name = f"processed/{file_id}_{file_name}"
+        
+        source_blob = bucket.blob(source_blob_name)
+        
+        # Copy to processed folder
+        bucket.copy_blob(source_blob, bucket, dest_blob_name)
+        
+        # Delete from processing folder
+        source_blob.delete()
+        
+        log_to_bigquery("INFO", f"File moved to processed folder: {dest_blob_name}")
+        return f"gs://{BUCKET_NAME}/{dest_blob_name}"
+        
+    except Exception as e:
+        log_to_bigquery("ERROR", f"Failed to move file to processed folder: {e}")
+        raise
 
 def load_to_bigquery(gcs_uri, file_name):
     """Load CSV from GCS to BigQuery"""
@@ -184,47 +210,58 @@ def process_single_file(file_id, file_name):
     """Process a single file (download → GCS → BigQuery → Pub/Sub)"""
     log_to_bigquery("INFO", f"Processing file: {file_name}", additional_info={"file_id": file_id})
     
-    # Step 1: Download from Drive
-    log_to_bigquery("INFO", "Downloading file from Google Drive...")
-    local_file = download_from_drive(file_id, file_name)
-    log_to_bigquery("INFO", f"File downloaded: {file_name}")
-    
-    # Step 2: Upload to GCS
-    log_to_bigquery("INFO", "Uploading file to Cloud Storage...")
-    gcs_uri = upload_to_gcs(local_file, file_name)
-    log_to_bigquery("INFO", f"File uploaded to GCS: {gcs_uri}")
-    
-    # Step 3: Load to BigQuery
-    log_to_bigquery("INFO", "Loading data to BigQuery...")
-    rows_loaded = load_to_bigquery(gcs_uri, file_name)
-    log_to_bigquery("INFO", f"Data loaded to BigQuery: {rows_loaded} rows")
-    
-    # Step 4: Mark as processed
-    mark_file_as_processed(file_id, file_name, gcs_uri, rows_loaded)
-    
-    # Step 5: Publish Pub/Sub message
-    log_to_bigquery("INFO", "Publishing Pub/Sub message...")
-    pubsub_data = {
-        "file_id": file_id,
-        "file_name": file_name,
-        "gcs_uri": gcs_uri,
-        "rows_loaded": rows_loaded,
-        "timestamp": datetime.utcnow().isoformat()
-    }
-    publish_pubsub_message(pubsub_data)
-    log_to_bigquery("INFO", "Pub/Sub message published")
-    
-    # Cleanup
-    os.unlink(local_file)
-    
-    log_to_bigquery("INFO", f"File processing completed successfully: {file_name}")
-    
-    return {
-        "file_id": file_id,
-        "file_name": file_name,
-        "gcs_uri": gcs_uri,
-        "rows_loaded": rows_loaded
-    }
+    try:
+        # Step 1: Download from Drive
+        log_to_bigquery("INFO", "Downloading file from Google Drive...")
+        local_file = download_from_drive(file_id, file_name)
+        log_to_bigquery("INFO", f"File downloaded: {file_name}")
+        
+        # Step 2: Upload to GCS processing folder
+        log_to_bigquery("INFO", "Uploading file to Cloud Storage (processing)...")
+        gcs_uri = upload_to_gcs(local_file, file_id, file_name)
+        log_to_bigquery("INFO", f"File uploaded to GCS: {gcs_uri}")
+        
+        # Step 3: Load to BigQuery
+        log_to_bigquery("INFO", "Loading data to BigQuery...")
+        rows_loaded = load_to_bigquery(gcs_uri, file_name)
+        log_to_bigquery("INFO", f"Data loaded to BigQuery: {rows_loaded} rows")
+        
+        # Step 4: Move to processed folder
+        log_to_bigquery("INFO", "Moving file to processed folder...")
+        processed_gcs_uri = move_to_processed_folder(file_id, file_name)
+        log_to_bigquery("INFO", f"File moved to: {processed_gcs_uri}")
+        
+        # Step 5: Mark as processed
+        mark_file_as_processed(file_id, file_name, processed_gcs_uri, rows_loaded)
+        
+        # Step 6: Publish Pub/Sub message
+        log_to_bigquery("INFO", "Publishing Pub/Sub message...")
+        pubsub_data = {
+            "file_id": file_id,
+            "file_name": file_name,
+            "gcs_uri": processed_gcs_uri,
+            "rows_loaded": rows_loaded,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        publish_pubsub_message(pubsub_data)
+        log_to_bigquery("INFO", "Pub/Sub message published")
+        
+        # Cleanup local file
+        os.unlink(local_file)
+        
+        log_to_bigquery("INFO", f"File processing completed successfully: {file_name}")
+        
+        return {
+            "file_id": file_id,
+            "file_name": file_name,
+            "gcs_uri": processed_gcs_uri,
+            "rows_loaded": rows_loaded
+        }
+        
+    except Exception as e:
+        log_to_bigquery("ERROR", f"Failed to process file {file_name}: {e}", 
+                       additional_info={"file_id": file_id})
+        raise
 
 
 def is_file_already_processed(file_id):
@@ -235,10 +272,16 @@ def is_file_already_processed(file_id):
         query = f"""
         SELECT COUNT(*) as count
         FROM `{PROJECT_ID}.{DATASET_ID}.{PROCESSED_FILES_TABLE_ID}`
-        WHERE file_id = '{file_id}'
+        WHERE file_id = @file_id
         """
         
-        result = client.query(query).result()
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("file_id", "STRING", file_id)
+            ]
+        )
+        
+        result = client.query(query, job_config=job_config).result()
         for row in result:
             return row.count > 0
         return False
@@ -249,24 +292,40 @@ def is_file_already_processed(file_id):
 
 
 def mark_file_as_processed(file_id, file_name, gcs_uri, rows_loaded):
-    """Mark file as processed in tracking table"""
+    """Mark file as processed in tracking table using MERGE (idempotent)"""
     try:
         client = bigquery.Client(project=PROJECT_ID)
-        table_ref = f"{PROJECT_ID}.{DATASET_ID}.{PROCESSED_FILES_TABLE_ID}"
         
-        row = {
-            "file_id": file_id,
-            "file_name": file_name,
-            "processed_at": datetime.utcnow().isoformat(),
-            "gcs_uri": gcs_uri,
-            "rows_loaded": rows_loaded
-        }
+        # Use MERGE to ensure idempotency (only one record per file_id)
+        merge_query = f"""
+        MERGE `{PROJECT_ID}.{DATASET_ID}.{PROCESSED_FILES_TABLE_ID}` T
+        USING (
+            SELECT 
+                @file_id as file_id,
+                @file_name as file_name,
+                CURRENT_TIMESTAMP() as processed_at,
+                @gcs_uri as gcs_uri,
+                @rows_loaded as rows_loaded
+        ) S
+        ON T.file_id = S.file_id
+        WHEN NOT MATCHED THEN
+            INSERT (file_id, file_name, processed_at, gcs_uri, rows_loaded)
+            VALUES (S.file_id, S.file_name, S.processed_at, S.gcs_uri, S.rows_loaded)
+        """
         
-        errors = client.insert_rows_json(table_ref, [row])
-        if errors:
-            log_to_bigquery("ERROR", f"Failed to mark file as processed: {errors}")
-        else:
-            log_to_bigquery("INFO", f"File marked as processed: {file_name}")
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("file_id", "STRING", file_id),
+                bigquery.ScalarQueryParameter("file_name", "STRING", file_name),
+                bigquery.ScalarQueryParameter("gcs_uri", "STRING", gcs_uri),
+                bigquery.ScalarQueryParameter("rows_loaded", "INTEGER", rows_loaded)
+            ]
+        )
+        
+        query_job = client.query(merge_query, job_config=job_config)
+        query_job.result()
+        
+        log_to_bigquery("INFO", f"File marked as processed: {file_name}")
             
     except Exception as e:
         log_to_bigquery("ERROR", f"Failed to mark file as processed: {e}")
