@@ -39,25 +39,8 @@ data "google_cloudfunctions2_function" "file_processor" {
 }
 
 # ============================================================================
-# STEP 8: ÚJ resource-ok - Dataform Repository, Workspace és Aggregált táblák
+# STEP 8: ÚJ resource-ok - Aggregált BigQuery táblák
 # ============================================================================
-
-# Dataform Repository
-resource "google_dataform_repository" "demo_repository" {
-  name   = "${local.name_with_hyphen}-dataform-repo"
-  region = var.region
-
-  service_account = data.google_service_account.demo_sa.email
-}
-
-# Dataform Workspace
-resource "google_dataform_repository_workspace" "demo_workspace" {
-  provider = google-beta
-
-  repository = google_dataform_repository.demo_repository.name
-  name       = "${local.name_with_hyphen}-workspace"
-  region     = var.region
-}
 
 # Aggregált táblák sémája a BigQuery-ben
 resource "google_bigquery_table" "monthly_orders_by_ship_mode" {
@@ -129,7 +112,7 @@ resource "google_bigquery_table" "monthly_category_revenue_trend" {
   ])
 }
 
-# IAM - Dataform Service Account jogosultságok
+# IAM - Service Account jogosultságok BigQuery-hez
 resource "google_bigquery_dataset_iam_member" "dataform_editor" {
   dataset_id = data.google_bigquery_dataset.demo_dataset.dataset_id
   role       = "roles/bigquery.dataEditor"
@@ -152,4 +135,48 @@ resource "local_file" "dataform_sql_files" {
     dataset_name   = data.google_bigquery_dataset.demo_dataset.dataset_id
     raw_table_name = data.google_bigquery_table.raw_data_table.table_id
   })
+}
+
+# Instruction fájl létrehozása a Dataform setup-hoz
+resource "local_file" "dataform_setup_instructions" {
+  filename = "${path.module}/DATAFORM_SETUP.md"
+  content  = <<-EOT
+# Dataform Setup Instructions
+
+## Dataform Repository és Workspace létrehozása (Manuális lépések)
+
+### 1. Navigálj a Dataform Console-ra:
+
+https://console.cloud.google.com/bigquery/dataform?project=${var.project_id}
+
+
+### 2. Hozz létre egy Repository-t:
+- Kattints: **Create Repository**
+- Repository ID: `${local.name_with_hyphen}-dataform-repo`
+- Region: `${var.region}`
+- Service Account: `${data.google_service_account.demo_sa.email}`
+- Kattints: **Create**
+
+### 3. Hozz létre egy Workspace-t:
+- A repository-ban kattints: **Create Workspace**
+- Workspace ID: `${local.name_with_hyphen}-workspace`
+- Kattints: **Create**
+
+### 4. Töltsd fel a generált SQLX fájlokat:
+A fájlok helye: `${path.module}/generated_dataform/`
+
+Húzd be drag & drop-pal mind az 5 fájlt a workspace `definitions/` mappájába:
+- monthly_orders_by_ship_mode.sqlx
+- monthly_orders_us_state.sqlx
+- monthly_favorite_product.sqlx
+- monthly_customer_segment_analysis.sqlx
+- monthly_category_revenue_trend.sqlx
+
+### 5. Futtasd a Dataform workflow-t:
+- Kattints: **Start Execution**
+- Válaszd ki az összes fájlt
+- Kattints: **Execute**
+
+✅ Kész! Az aggregált táblák feltöltődnek adatokkal.
+EOT
 }
