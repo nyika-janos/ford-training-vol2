@@ -132,13 +132,13 @@ data "google_project" "project" {
 }
 
 resource "google_service_account_iam_member" "dataform_token_creator" {
-  service_account_id = data.google_service_account.demo_sa.name
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${data.google_service_account.demo_sa.email}"
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dataform.iam.gserviceaccount.com"
 }
 
 resource "google_service_account_iam_member" "dataform_sa_user" {
-  service_account_id = data.google_service_account.demo_sa.name
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${data.google_service_account.demo_sa.email}"
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dataform.iam.gserviceaccount.com"
 }
