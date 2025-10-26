@@ -41,3 +41,10 @@ resource "google_bigquery_dataset_iam_member" "dataset_editor" {
   role       = "roles/bigquery.dataEditor"
   member     = "serviceAccount:${data.google_service_account.demo_sa.email}"
 }
+
+# BigQuery - Job User (project szintű, job létrehozáshoz)
+resource "google_project_iam_member" "bigquery_job_user" {
+  project = var.project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${data.google_service_account.demo_sa.email}"
+}
