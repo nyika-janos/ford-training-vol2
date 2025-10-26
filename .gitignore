@@ -5,24 +5,3 @@
 */*/.terraform.lock.hcl
 */*/.terraform/
 /terraform_demo_1/step-06-cloud-function-processor/function_source.zip
-
-# Service Account keys
-*.json
-
-# Environment variables
-.env
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-env/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
