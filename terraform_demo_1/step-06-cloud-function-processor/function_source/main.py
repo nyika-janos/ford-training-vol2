@@ -9,7 +9,7 @@ import os
 import json
 import tempfile
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from google.cloud import storage, bigquery, pubsub_v1
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
@@ -28,40 +28,6 @@ MONITORED_FOLDER_ID = os.environ.get('MONITORED_FOLDER_ID', '')
 
 # Global run_id for this function execution
 RUN_ID = str(uuid.uuid4())
-
-def is_notification_already_processed(resource_id, resource_state):
-    """Check if this exact notification was already processed"""
-    try:
-        client = bigquery.Client(project=PROJECT_ID)
-        
-        # Check if we processed this notification in the last 5 minutes
-        query = f"""
-        SELECT COUNT(*) as count
-        FROM `{PROJECT_ID}.{DATASET_ID}.{LOG_TABLE_ID}`
-        WHERE message = 'Drive notification processed successfully'
-        AND additional_info LIKE '%"resource_id": "{resource_id}"%'
-        AND additional_info LIKE '%"state": "{resource_state}"%'
-        AND timestamp > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 5 MINUTE)
-        """
-        
-        result = client.query(query).result()
-        for row in result:
-            return row.count > 0
-        return False
-        
-    except Exception as e:
-        log_to_bigquery("WARNING", f"Could not check notification deduplication: {e}")
-        return False
-    
-def mark_notification_processed(resource_id, resource_state, processed_count):
-    """Mark this notification as processed"""
-    log_to_bigquery("INFO", "Drive notification processed successfully", 
-                   additional_info={
-                       "resource_id": resource_id,
-                       "state": resource_state,
-                       "files_processed": processed_count
-                   })
-    
 
 def log_to_bigquery(log_level, message, source="cloud_function", user_id=None, additional_info=None):
     """Log message to BigQuery log table"""
@@ -128,25 +94,6 @@ def release_file_lock(file_id):
     except Exception as e:
         log_to_bigquery("WARNING", f"Failed to release lock: {e}")
 
-
-def is_file_in_monitored_folder(drive_service, file_id):
-    """Check if file is in the monitored folder"""
-    if not MONITORED_FOLDER_ID:
-        return True  # If no folder specified, accept all files
-    
-    try:
-        file = drive_service.files().get(
-            fileId=file_id,
-            fields="parents"
-        ).execute()
-        
-        parents = file.get('parents', [])
-        return MONITORED_FOLDER_ID in parents
-    except Exception as e:
-        log_to_bigquery("ERROR", f"Error checking file parents: {e}", additional_info={"file_id": file_id})
-        return False
-
-
 def download_from_drive(file_id, file_name):
     """Download file from Google Drive"""
     try:
@@ -167,7 +114,6 @@ def download_from_drive(file_id, file_name):
     except Exception as e:
         log_to_bigquery("ERROR", f"Failed to download from Drive: {e}", additional_info={"file_id": file_id})
         raise
-
 
 def upload_to_gcs(local_file_path, file_id, file_name):
     """Upload file to Cloud Storage in processing folder"""
@@ -262,7 +208,6 @@ def load_to_bigquery(gcs_uri, file_name):
         log_to_bigquery("ERROR", f"Failed to load to BigQuery: {e}")
         raise
 
-
 def publish_pubsub_message(message_data):
     """Publish message to Pub/Sub topic"""
     try:
@@ -279,7 +224,6 @@ def publish_pubsub_message(message_data):
     except Exception as e:
         log_to_bigquery("ERROR", f"Failed to publish Pub/Sub message: {e}")
         raise
-
 
 def is_file_already_processed(file_id):
     """Check if file has already been processed using file_id"""
@@ -306,7 +250,6 @@ def is_file_already_processed(file_id):
     except Exception as e:
         log_to_bigquery("WARNING", f"Could not check processed files: {e}")
         return False
-
 
 def mark_file_as_processed(file_id, file_name, gcs_uri, rows_loaded):
     """Mark file as processed in tracking table using MERGE (idempotent)"""
@@ -346,7 +289,6 @@ def mark_file_as_processed(file_id, file_name, gcs_uri, rows_loaded):
             
     except Exception as e:
         log_to_bigquery("ERROR", f"Failed to mark file as processed: {e}")
-
 
 def process_single_file(file_id, file_name):
     """Process a single file (download → GCS → BigQuery → Pub/Sub)"""

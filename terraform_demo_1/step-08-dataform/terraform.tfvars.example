@@ -1,0 +1,7 @@
+# Másold át terraform.tfvars néven és töltsd ki!
+
+user_name   = "Your Name"
+environment = "demo"
+
+# Drive folder ID (amit megosztottál a SA-val)
+monitored_folder_id = "1a2b3c4d5e6f7g8h9i0j"
