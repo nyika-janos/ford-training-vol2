@@ -39,17 +39,6 @@ output "cloud_function_url" {
   description = "The Cloud Function Gen2 HTTPS trigger URL (from step-06)"
 }
 
-# Step-08 specifikus outputs
-output "dataform_repository_name" {
-  description = "Dataform repository neve"
-  value       = google_dataform_repository.demo_repository.name
-}
-
-output "dataform_workspace_name" {
-  description = "Dataform workspace neve"
-  value       = google_dataform_repository_workspace.demo_workspace.name
-}
-
 output "aggregated_tables" {
   description = "Létrehozott aggregált táblák"
   value = [
