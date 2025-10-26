@@ -126,21 +126,23 @@ resource "google_project_iam_member" "dataform_job_user" {
   member  = "serviceAccount:${data.google_service_account.demo_sa.email}"
 }
 
-# Dataform Service Account jogosultságok - hogy használhassa a demo SA-t
+# Dataform Service Account jogosultságok - PROJECT szinten
 data "google_project" "project" {
   project_id = var.project_id
 }
 
-resource "google_service_account_iam_member" "dataform_token_creator" {
-  service_account_id = "projects/${var.project_id}/serviceAccounts/${data.google_service_account.demo_sa.email}"
-  role               = "roles/iam.serviceAccountTokenCreator"
-  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dataform.iam.gserviceaccount.com"
+# Service Account Token Creator - PROJECT szinten a Dataform SA-nak
+resource "google_project_iam_member" "dataform_token_creator" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountTokenCreator"
+  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dataform.iam.gserviceaccount.com"
 }
 
-resource "google_service_account_iam_member" "dataform_sa_user" {
-  service_account_id = "projects/${var.project_id}/serviceAccounts/${data.google_service_account.demo_sa.email}"
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dataform.iam.gserviceaccount.com"
+# Service Account User - PROJECT szinten a Dataform SA-nak
+resource "google_project_iam_member" "dataform_sa_user" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountUser"
+  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dataform.iam.gserviceaccount.com"
 }
 
 # Generált Dataform SQL fájlok
