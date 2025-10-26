@@ -185,7 +185,17 @@ https://console.cloud.google.com/bigquery/dataform?project=${var.project_id}
 ### 4. Töltsd fel a generált SQLX fájlokat:
 A fájlok helye: `${path.module}/generated_dataform/`
 
-Húzd be drag & drop-pal mind az 5 fájlt a workspace `definitions/` mappájába:
+Ha nem létezne, akkor hozd létre a `definitions/` foldert a gyökérbe és a `workflow_settings.yaml` fájlt a következő tartalommal:
+
+```
+defaultProject: `${var.project_id}`
+defaultLocation: `${var.region}`
+defaultDataset: `${data.google_bigquery_dataset.demo_dataset.dataset_id}`
+defaultAssertionDataset: dataform_assertions
+dataformCoreVersion: 3.0.0
+```
+
+Hozd létre mind az 5 fájlt a workspace `definitions/` mappájába:
 - monthly_orders_by_ship_mode.sqlx
 - monthly_orders_us_state.sqlx
 - monthly_favorite_product.sqlx
