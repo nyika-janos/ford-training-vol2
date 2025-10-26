@@ -89,6 +89,45 @@ def get_drive_service():
     """Get Drive service using default credentials"""
     return build('drive', 'v3')
 
+def try_acquire_file_lock(file_id):
+    """Try to acquire an exclusive lock for processing this file"""
+    try:
+        client = storage.Client(project=PROJECT_ID)
+        bucket = client.bucket(BUCKET_NAME)
+        lock_blob_name = f"locks/{file_id}.lock"
+        blob = bucket.blob(lock_blob_name)
+        
+        # Try to create lock file (fails if exists)
+        try:
+            blob.upload_from_string(
+                RUN_ID,
+                if_generation_match=0  # Only succeeds if blob doesn't exist
+            )
+            log_to_bigquery("INFO", f"Lock acquired for file: {file_id}")
+            return True
+        except Exception:
+            # Lock already exists - someone else is processing
+            log_to_bigquery("INFO", f"Lock already exists for file: {file_id} - skipping")
+            return False
+            
+    except Exception as e:
+        log_to_bigquery("ERROR", f"Failed to acquire lock: {e}")
+        return False
+
+def release_file_lock(file_id):
+    """Release the lock after processing"""
+    try:
+        client = storage.Client(project=PROJECT_ID)
+        bucket = client.bucket(BUCKET_NAME)
+        lock_blob_name = f"locks/{file_id}.lock"
+        blob = bucket.blob(lock_blob_name)
+        
+        if blob.exists():
+            blob.delete()
+            log_to_bigquery("INFO", f"Lock released for file: {file_id}")
+    except Exception as e:
+        log_to_bigquery("WARNING", f"Failed to release lock: {e}")
+
 
 def is_file_in_monitored_folder(drive_service, file_id):
     """Check if file is in the monitored folder"""
@@ -242,64 +281,6 @@ def publish_pubsub_message(message_data):
         raise
 
 
-def process_single_file(file_id, file_name):
-    """Process a single file (download → GCS → BigQuery → Pub/Sub)"""
-    log_to_bigquery("INFO", f"Processing file: {file_name}", additional_info={"file_id": file_id})
-    
-    try:
-        # Step 1: Download from Drive
-        log_to_bigquery("INFO", "Downloading file from Google Drive...")
-        local_file = download_from_drive(file_id, file_name)
-        log_to_bigquery("INFO", f"File downloaded: {file_name}")
-        
-        # Step 2: Upload to GCS processing folder
-        log_to_bigquery("INFO", "Uploading file to Cloud Storage (processing)...")
-        gcs_uri = upload_to_gcs(local_file, file_id, file_name)
-        log_to_bigquery("INFO", f"File uploaded to GCS: {gcs_uri}")
-        
-        # Step 3: Load to BigQuery
-        log_to_bigquery("INFO", "Loading data to BigQuery...")
-        rows_loaded = load_to_bigquery(gcs_uri, file_name)
-        log_to_bigquery("INFO", f"Data loaded to BigQuery: {rows_loaded} rows")
-        
-        # Step 4: Move to processed folder
-        log_to_bigquery("INFO", "Moving file to processed folder...")
-        processed_gcs_uri = move_to_processed_folder(file_id, file_name)
-        log_to_bigquery("INFO", f"File moved to: {processed_gcs_uri}")
-        
-        # Step 5: Mark as processed
-        mark_file_as_processed(file_id, file_name, processed_gcs_uri, rows_loaded)
-        
-        # Step 6: Publish Pub/Sub message
-        log_to_bigquery("INFO", "Publishing Pub/Sub message...")
-        pubsub_data = {
-            "file_id": file_id,
-            "file_name": file_name,
-            "gcs_uri": processed_gcs_uri,
-            "rows_loaded": rows_loaded,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        publish_pubsub_message(pubsub_data)
-        log_to_bigquery("INFO", "Pub/Sub message published")
-        
-        # Cleanup local file
-        os.unlink(local_file)
-        
-        log_to_bigquery("INFO", f"File processing completed successfully: {file_name}")
-        
-        return {
-            "file_id": file_id,
-            "file_name": file_name,
-            "gcs_uri": processed_gcs_uri,
-            "rows_loaded": rows_loaded
-        }
-        
-    except Exception as e:
-        log_to_bigquery("ERROR", f"Failed to process file {file_name}: {e}", 
-                       additional_info={"file_id": file_id})
-        raise
-
-
 def is_file_already_processed(file_id):
     """Check if file has already been processed using file_id"""
     try:
@@ -367,6 +348,60 @@ def mark_file_as_processed(file_id, file_name, gcs_uri, rows_loaded):
         log_to_bigquery("ERROR", f"Failed to mark file as processed: {e}")
 
 
+def process_single_file(file_id, file_name):
+    """Process a single file (download → GCS → BigQuery → Pub/Sub)"""
+    log_to_bigquery("INFO", f"Processing file: {file_name}", additional_info={"file_id": file_id})
+    
+    # Step 1: Download from Drive
+    log_to_bigquery("INFO", "Downloading file from Google Drive...")
+    local_file = download_from_drive(file_id, file_name)
+    log_to_bigquery("INFO", f"File downloaded: {file_name}")
+    
+    # Step 2: Upload to GCS processing folder
+    log_to_bigquery("INFO", "Uploading file to Cloud Storage (processing)...")
+    gcs_uri = upload_to_gcs(local_file, file_id, file_name)
+    log_to_bigquery("INFO", f"File uploaded to GCS: {gcs_uri}")
+    
+    # Step 3: Load to BigQuery
+    log_to_bigquery("INFO", "Loading data to BigQuery...")
+    rows_loaded = load_to_bigquery(gcs_uri, file_name)
+    log_to_bigquery("INFO", f"Data loaded to BigQuery: {rows_loaded} rows")
+    
+    # Step 4: Move to processed folder
+    log_to_bigquery("INFO", "Moving file to processed folder...")
+    processed_gcs_uri = move_to_processed_folder(file_id, file_name)
+    log_to_bigquery("INFO", f"File moved to: {processed_gcs_uri}")
+    
+    # Step 5: Mark as processed
+    mark_file_as_processed(file_id, file_name, processed_gcs_uri, rows_loaded)
+    
+    # Step 6: Publish Pub/Sub message
+    log_to_bigquery("INFO", "Publishing Pub/Sub message...")
+    pubsub_data = {
+        "file_id": file_id,
+        "file_name": file_name,
+        "gcs_uri": processed_gcs_uri,
+        "rows_loaded": rows_loaded,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    publish_pubsub_message(pubsub_data)
+    log_to_bigquery("INFO", "Pub/Sub message published")
+    
+    # Cleanup local file
+    os.unlink(local_file)
+    
+    # Release lock
+    release_file_lock(file_id)
+    
+    log_to_bigquery("INFO", f"File processing completed successfully: {file_name}")
+    
+    return {
+        "file_id": file_id,
+        "file_name": file_name,
+        "gcs_uri": processed_gcs_uri,
+        "rows_loaded": rows_loaded
+    }
+
 def process_file(request):
     """
     Cloud Function entry point
@@ -388,15 +423,6 @@ def process_file(request):
                            "resource_id": resource_id
                        })
         
-        # Check if this exact notification was already processed
-        if is_notification_already_processed(resource_id, resource_state):
-            log_to_bigquery("INFO", "Notification already processed (deduplication)", 
-                           additional_info={
-                               "resource_id": resource_id,
-                               "state": resource_state
-                           })
-            return {"status": "deduplicated", "reason": "notification_already_processed"}, 200
-        
         # Only process 'change' and 'add' notifications
         if resource_state not in ['change', 'add']:
             log_to_bigquery("INFO", f"Ignoring notification state: {resource_state}")
@@ -405,9 +431,8 @@ def process_file(request):
         # Get Drive service
         drive_service = get_drive_service()
         
-        # Get recent files from monitored folder (simpler approach)
+        # Get recent files from monitored folder
         try:
-            # Query files in the monitored folder
             query = f"'{MONITORED_FOLDER_ID}' in parents and mimeType='text/csv' and trashed=false"
             
             results = drive_service.files().list(
@@ -421,32 +446,46 @@ def process_file(request):
             log_to_bigquery("INFO", f"Found {len(files)} CSV files in monitored folder")
             
             processed_files = []
+            skipped_files = 0
             
             for file in files:
                 file_id = file['id']
                 file_name = file['name']
                 
-                # Skip if already processed
+                # Try to acquire lock - skip silently if already locked
+                if not try_acquire_file_lock(file_id):
+                    skipped_files += 1
+                    continue
+                
+                # Check if already fully processed (double-check)
                 if is_file_already_processed(file_id):
-                    log_to_bigquery("DEBUG", f"Skipping already processed file: {file_name}", 
-                                   additional_info={"file_id": file_id})
+                    release_file_lock(file_id)
+                    skipped_files += 1
                     continue
                 
                 # Process the file
                 log_to_bigquery("INFO", f"Processing new file: {file_name}", 
                                additional_info={"file_id": file_id})
                 
-                result = process_single_file(file_id, file_name)
-                processed_files.append(result)
+                try:
+                    result = process_single_file(file_id, file_name)
+                    processed_files.append(result)
+                except Exception as e:
+                    log_to_bigquery("ERROR", f"Failed to process file {file_name}: {e}")
+                    release_file_lock(file_id)
             
-            # Mark notification as processed
-            mark_notification_processed(resource_id, resource_state, len(processed_files))
+            if processed_files:
+                log_to_bigquery("INFO", f"Successfully processed {len(processed_files)} file(s)")
+            
+            if skipped_files > 0:
+                log_to_bigquery("INFO", f"Skipped {skipped_files} file(s) (already processed or locked)")
             
             log_to_bigquery("INFO", f"=== Function completed with RUN_ID: {RUN_ID} ===")
             
             return {
                 "status": "success",
                 "processed_files": len(processed_files),
+                "skipped_files": skipped_files,
                 "files": processed_files
             }, 200
             
