@@ -227,37 +227,26 @@ def process_file(request):
         # Get Drive service
         drive_service = get_drive_service()
         
-        # Get recent changes
+        # Get recent files from monitored folder (simpler approach)
         try:
-            # Note: In production, store and use pageToken to track changes incrementally
-            results = drive_service.changes().list(
+            # Query files in the monitored folder
+            query = f"'{MONITORED_FOLDER_ID}' in parents and mimeType='text/csv' and trashed=false"
+            
+            results = drive_service.files().list(
+                q=query,
                 pageSize=10,
-                fields="changes(fileId, file(id, name, mimeType, parents))"
+                fields="files(id, name, mimeType, modifiedTime)",
+                orderBy="modifiedTime desc"
             ).execute()
             
-            changes = results.get('changes', [])
-            log_to_bigquery("INFO", f"Found {len(changes)} recent changes")
+            files = results.get('files', [])
+            log_to_bigquery("INFO", f"Found {len(files)} CSV files in monitored folder")
             
             processed_files = []
             
-            for change in changes:
-                file = change.get('file')
-                if not file:
-                    continue
-                
+            for file in files:
                 file_id = file['id']
                 file_name = file['name']
-                mime_type = file.get('mimeType', '')
-                
-                # Filter 1: Only CSV files
-                if not file_name.endswith('.csv'):
-                    log_to_bigquery("DEBUG", f"Skipping non-CSV file: {file_name}")
-                    continue
-                
-                # Filter 2: Only files in monitored folder
-                if not is_file_in_monitored_folder(drive_service, file_id):
-                    log_to_bigquery("DEBUG", f"Skipping file not in monitored folder: {file_name}")
-                    continue
                 
                 # Process the file
                 log_to_bigquery("INFO", f"Processing file from Drive notification: {file_name}", 

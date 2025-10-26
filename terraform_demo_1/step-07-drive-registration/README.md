@@ -51,12 +51,11 @@ A demo Service Account-hoz (amit a Terraform létrehozott step-02-ben):
 
 ---
 
-### **3. Drive folder létrehozása és megosztása**
+### **3. Drive folder létrehozása és megosztása a saját Service Accountoddal**
 
 **Google Drive-ban:**
 
-1. **Hozz létre egy új foldert:**
-   - Név: `Terraform Demo Upload` (vagy bármi más)
+1. **Keresd meg a veled megosztott névre szóló foldert:**
 
 2. **Oszd meg a Service Account-tal:**
    - Jobb klikk a folderön → **Share**
@@ -72,7 +71,7 @@ A demo Service Account-hoz (amit a Terraform létrehozott step-02-ben):
    - URL-ből:
      ```
      https://drive.google.com/drive/folders/1a2b3c4d5e6f7g8h9i0j
-                                             ^^^^^^^^^^^^^^^^^^^^
+                                            ^^^^^^^^^^^^^^^^^^^^
                                              Ez a folder ID
      ```
 
@@ -80,8 +79,21 @@ A demo Service Account-hoz (amit a Terraform létrehozott step-02-ben):
 
 ### **4. CloudShell előkészítés**
 
-**CloudShell-ben:**
+**GCP Console-on:**
 
+- Nyisd meg a CloudShell-t
+
+**Töltsd fel a Service Account kulcsot:**
+- CloudShell-ben: három pont menü → **Upload file**
+- Válaszd ki: `terraform-demo-sa-*-key.json`
+- Nevezd át: `your_name.json`
+
+```bash
+# Ellenőrizd
+ls -la your_name.json
+```
+
+**Fájlok ellenőrzése:**
 ```bash
 # Navigálj a step-07 könyvtárba
 cd ~/ford-training-vol2/terraform_demo_1/step-07-drive-webhook/
@@ -89,17 +101,6 @@ cd ~/ford-training-vol2/terraform_demo_1/step-07-drive-webhook/
 # Ellenőrizd a fájlokat
 ls -la
 ```
-
-**Töltsd fel a Service Account kulcsot:**
-- CloudShell-ben: három pont menü → **Upload file**
-- Válaszd ki: `terraform-demo-sa-*-key.json`
-- Nevezd át: `demo-sa-key.json`
-
-```bash
-# Ellenőrizd
-ls -la demo-sa-key.json
-```
-
 ---
 
 ### **5. Python függőségek telepítése**
@@ -137,7 +138,7 @@ nano .env
 FUNCTION_URL=https://europe-west1-ford-training-430008.cloudfunctions.net/henry-ford-file-processor
 
 # Service Account key file name
-SA_KEY_FILE=demo-sa-key.json
+SA_KEY_FILE=your_name.json
 
 # Optional security token
 WEBHOOK_TOKEN=my-secret-token-123
@@ -184,7 +185,7 @@ Ez frissíti a Cloud Function environment variables-t a folder ID-val.
 ### **8. Webhook regisztráció futtatása**
 
 ```bash
-cd ../step-07-drive-webhook/
+cd ../step-07-drive-registration/
 python3 register_webhook.py
 ```
 
