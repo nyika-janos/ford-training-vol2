@@ -29,6 +29,39 @@ MONITORED_FOLDER_ID = os.environ.get('MONITORED_FOLDER_ID', '')
 # Global run_id for this function execution
 RUN_ID = str(uuid.uuid4())
 
+def is_notification_already_processed(resource_id, resource_state):
+    """Check if this exact notification was already processed"""
+    try:
+        client = bigquery.Client(project=PROJECT_ID)
+        
+        # Check if we processed this notification in the last 5 minutes
+        query = f"""
+        SELECT COUNT(*) as count
+        FROM `{PROJECT_ID}.{DATASET_ID}.{LOG_TABLE_ID}`
+        WHERE message = 'Drive notification processed successfully'
+        AND additional_info LIKE '%"resource_id": "{resource_id}"%'
+        AND additional_info LIKE '%"state": "{resource_state}"%'
+        AND timestamp > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 5 MINUTE)
+        """
+        
+        result = client.query(query).result()
+        for row in result:
+            return row.count > 0
+        return False
+        
+    except Exception as e:
+        log_to_bigquery("WARNING", f"Could not check notification deduplication: {e}")
+        return False
+    
+def mark_notification_processed(resource_id, resource_state, processed_count):
+    """Mark this notification as processed"""
+    log_to_bigquery("INFO", "Drive notification processed successfully", 
+                   additional_info={
+                       "resource_id": resource_id,
+                       "state": resource_state,
+                       "files_processed": processed_count
+                   })
+    
 
 def log_to_bigquery(log_level, message, source="cloud_function", user_id=None, additional_info=None):
     """Log message to BigQuery log table"""
@@ -355,6 +388,15 @@ def process_file(request):
                            "resource_id": resource_id
                        })
         
+        # Check if this exact notification was already processed
+        if is_notification_already_processed(resource_id, resource_state):
+            log_to_bigquery("INFO", "Notification already processed (deduplication)", 
+                           additional_info={
+                               "resource_id": resource_id,
+                               "state": resource_state
+                           })
+            return {"status": "deduplicated", "reason": "notification_already_processed"}, 200
+        
         # Only process 'change' and 'add' notifications
         if resource_state not in ['change', 'add']:
             log_to_bigquery("INFO", f"Ignoring notification state: {resource_state}")
@@ -386,7 +428,7 @@ def process_file(request):
                 
                 # Skip if already processed
                 if is_file_already_processed(file_id):
-                    log_to_bigquery("INFO", f"Skipping already processed file: {file_name}", 
+                    log_to_bigquery("DEBUG", f"Skipping already processed file: {file_name}", 
                                    additional_info={"file_id": file_id})
                     continue
                 
@@ -397,7 +439,8 @@ def process_file(request):
                 result = process_single_file(file_id, file_name)
                 processed_files.append(result)
             
-            log_to_bigquery("INFO", f"Drive notification processed: {len(processed_files)} files")
+            # Mark notification as processed
+            mark_notification_processed(resource_id, resource_state, len(processed_files))
             
             log_to_bigquery("INFO", f"=== Function completed with RUN_ID: {RUN_ID} ===")
             
