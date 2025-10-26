@@ -180,3 +180,42 @@ resource "google_bigquery_table" "raw_data_table" {
     }
   ])
 }
+
+# Processed files tracking table
+resource "google_bigquery_table" "processed_files_table" {
+  dataset_id = google_bigquery_dataset.demo_dataset.dataset_id
+  table_id   = "${local.name_with_hyphen}-processed-files"
+
+  schema = jsonencode([
+    {
+      name        = "file_id"
+      type        = "STRING"
+      mode        = "REQUIRED"
+      description = "Google Drive fájl egyedi azonosítója"
+    },
+    {
+      name        = "file_name"
+      type        = "STRING"
+      mode        = "REQUIRED"
+      description = "Fájl neve"
+    },
+    {
+      name        = "processed_at"
+      type        = "TIMESTAMP"
+      mode        = "REQUIRED"
+      description = "Feldolgozás időpontja"
+    },
+    {
+      name        = "gcs_uri"
+      type        = "STRING"
+      mode        = "NULLABLE"
+      description = "GCS tárolási hely"
+    },
+    {
+      name        = "rows_loaded"
+      type        = "INTEGER"
+      mode        = "NULLABLE"
+      description = "Betöltött sorok száma"
+    }
+  ])
+}

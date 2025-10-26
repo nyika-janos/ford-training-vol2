@@ -24,6 +24,11 @@ data "google_bigquery_table" "raw_data_table" {
   table_id   = "${local.name_with_hyphen}-raw-data-table"
 }
 
+data "google_bigquery_table" "processed_files_table" {
+  dataset_id = data.google_bigquery_dataset.demo_dataset.dataset_id
+  table_id   = "${local.name_with_hyphen}-processed-files"
+}
+
 # ============================================================================
 # STEP 6: ÚJ resource-ok - Pub/Sub Topic és Cloud Function Gen2
 # ============================================================================
@@ -85,13 +90,14 @@ resource "google_cloudfunctions2_function" "file_processor" {
     service_account_email = data.google_service_account.demo_sa.email
 
     environment_variables = {
-      PROJECT_ID          = var.project_id
-      BUCKET_NAME         = data.google_storage_bucket.demo_bucket.name
-      DATASET_ID          = data.google_bigquery_dataset.demo_dataset.dataset_id
-      LOG_TABLE_ID        = data.google_bigquery_table.log_table.table_id
-      RAW_DATA_TABLE_ID   = data.google_bigquery_table.raw_data_table.table_id
-      PUBSUB_TOPIC        = google_pubsub_topic.demo_topic.id
-      MONITORED_FOLDER_ID = var.monitored_folder_id
+      PROJECT_ID               = var.project_id
+      BUCKET_NAME              = data.google_storage_bucket.demo_bucket.name
+      DATASET_ID               = data.google_bigquery_dataset.demo_dataset.dataset_id
+      LOG_TABLE_ID             = data.google_bigquery_table.log_table.table_id
+      RAW_DATA_TABLE_ID        = data.google_bigquery_table.raw_data_table.table_id
+      PROCESSED_FILES_TABLE_ID = data.google_bigquery_table.processed_files_table.table_id
+      PUBSUB_TOPIC             = google_pubsub_topic.demo_topic.id
+      MONITORED_FOLDER_ID      = var.monitored_folder_id
     }
   }
 }

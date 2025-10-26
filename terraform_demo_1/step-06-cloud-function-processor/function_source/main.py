@@ -13,6 +13,7 @@ from google.cloud import storage, bigquery, pubsub_v1
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 import io
+from datetime import datetime, timedelta
 
 
 # Environment variables
@@ -21,6 +22,7 @@ BUCKET_NAME = os.environ.get('BUCKET_NAME')
 DATASET_ID = os.environ.get('DATASET_ID')
 LOG_TABLE_ID = os.environ.get('LOG_TABLE_ID')
 RAW_DATA_TABLE_ID = os.environ.get('RAW_DATA_TABLE_ID')
+PROCESSED_FILES_TABLE_ID = os.environ.get('PROCESSED_FILES_TABLE_ID')
 PUBSUB_TOPIC = os.environ.get('PUBSUB_TOPIC')
 MONITORED_FOLDER_ID = os.environ.get('MONITORED_FOLDER_ID', '')
 
@@ -197,7 +199,10 @@ def process_single_file(file_id, file_name):
     rows_loaded = load_to_bigquery(gcs_uri, file_name)
     log_to_bigquery("INFO", f"Data loaded to BigQuery: {rows_loaded} rows")
     
-    # Step 4: Publish Pub/Sub message
+    # Step 4: Mark as processed
+    mark_file_as_processed(file_id, file_name, gcs_uri, rows_loaded)
+    
+    # Step 5: Publish Pub/Sub message
     log_to_bigquery("INFO", "Publishing Pub/Sub message...")
     pubsub_data = {
         "file_id": file_id,
@@ -220,6 +225,51 @@ def process_single_file(file_id, file_name):
         "gcs_uri": gcs_uri,
         "rows_loaded": rows_loaded
     }
+
+
+def is_file_already_processed(file_id):
+    """Check if file has already been processed using file_id"""
+    try:
+        client = bigquery.Client(project=PROJECT_ID)
+        
+        query = f"""
+        SELECT COUNT(*) as count
+        FROM `{PROJECT_ID}.{DATASET_ID}.{PROCESSED_FILES_TABLE_ID}`
+        WHERE file_id = '{file_id}'
+        """
+        
+        result = client.query(query).result()
+        for row in result:
+            return row.count > 0
+        return False
+        
+    except Exception as e:
+        log_to_bigquery("WARNING", f"Could not check processed files: {e}")
+        return False
+
+
+def mark_file_as_processed(file_id, file_name, gcs_uri, rows_loaded):
+    """Mark file as processed in tracking table"""
+    try:
+        client = bigquery.Client(project=PROJECT_ID)
+        table_ref = f"{PROJECT_ID}.{DATASET_ID}.{PROCESSED_FILES_TABLE_ID}"
+        
+        row = {
+            "file_id": file_id,
+            "file_name": file_name,
+            "processed_at": datetime.utcnow().isoformat(),
+            "gcs_uri": gcs_uri,
+            "rows_loaded": rows_loaded
+        }
+        
+        errors = client.insert_rows_json(table_ref, [row])
+        if errors:
+            log_to_bigquery("ERROR", f"Failed to mark file as processed: {errors}")
+        else:
+            log_to_bigquery("INFO", f"File marked as processed: {file_name}")
+            
+    except Exception as e:
+        log_to_bigquery("ERROR", f"Failed to mark file as processed: {e}")
 
 
 def process_file(request):
@@ -270,8 +320,14 @@ def process_file(request):
                 file_id = file['id']
                 file_name = file['name']
                 
+                # Skip if already processed
+                if is_file_already_processed(file_id):
+                    log_to_bigquery("INFO", f"Skipping already processed file: {file_name}", 
+                                   additional_info={"file_id": file_id})
+                    continue
+                
                 # Process the file
-                log_to_bigquery("INFO", f"Processing file from Drive notification: {file_name}", 
+                log_to_bigquery("INFO", f"Processing new file: {file_name}", 
                                additional_info={"file_id": file_id})
                 
                 result = process_single_file(file_id, file_name)
