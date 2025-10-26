@@ -119,10 +119,11 @@ resource "google_bigquery_dataset_iam_member" "dataform_editor" {
   member     = "serviceAccount:${data.google_service_account.demo_sa.email}"
 }
 
-resource "google_bigquery_dataset_iam_member" "dataform_job_user" {
-  dataset_id = data.google_bigquery_dataset.demo_dataset.dataset_id
-  role       = "roles/bigquery.jobUser"
-  member     = "serviceAccount:${data.google_service_account.demo_sa.email}"
+# BigQuery Job User - PROJECT szinten (nem dataset!)
+resource "google_project_iam_member" "dataform_job_user" {
+  project = var.project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${data.google_service_account.demo_sa.email}"
 }
 
 # Generált Dataform SQL fájlok
