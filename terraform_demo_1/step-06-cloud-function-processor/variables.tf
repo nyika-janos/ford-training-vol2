@@ -27,3 +27,7 @@ variable "credentials_file" {
   description = "Path to the Service Account JSON key"
   default     = "../../../sa-key.json"
 }
+
+variable "monitored_folder_id" {
+  description = "The ID of the monitored Google Drive folder"
+}
