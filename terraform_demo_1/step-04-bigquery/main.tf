@@ -32,6 +32,12 @@ resource "google_bigquery_table" "log_table" {
       description = "Log bejegyzés időpontja"
     },
     {
+      name        = "run_id"
+      type        = "STRING"
+      mode        = "REQUIRED"
+      description = "Futás egyedi azonosítója (UUID)"
+    },
+    {
       name        = "log_level"
       type        = "STRING"
       mode        = "REQUIRED"

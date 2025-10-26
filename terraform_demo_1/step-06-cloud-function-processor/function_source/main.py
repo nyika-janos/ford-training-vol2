@@ -8,12 +8,12 @@ Processes CSV files from a monitored Drive folder.
 import os
 import json
 import tempfile
-from datetime import datetime
+import uuid
+from datetime import datetime, timedelta
 from google.cloud import storage, bigquery, pubsub_v1
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 import io
-from datetime import datetime, timedelta
 
 
 # Environment variables
@@ -26,6 +26,9 @@ PROCESSED_FILES_TABLE_ID = os.environ.get('PROCESSED_FILES_TABLE_ID')
 PUBSUB_TOPIC = os.environ.get('PUBSUB_TOPIC')
 MONITORED_FOLDER_ID = os.environ.get('MONITORED_FOLDER_ID', '')
 
+# Global run_id for this function execution
+RUN_ID = str(uuid.uuid4())
+
 
 def log_to_bigquery(log_level, message, source="cloud_function", user_id=None, additional_info=None):
     """Log message to BigQuery log table"""
@@ -35,6 +38,7 @@ def log_to_bigquery(log_level, message, source="cloud_function", user_id=None, a
         
         row = {
             "timestamp": datetime.utcnow().isoformat(),
+            "run_id": RUN_ID,
             "log_level": log_level,
             "message": message,
             "source": source,
@@ -47,7 +51,6 @@ def log_to_bigquery(log_level, message, source="cloud_function", user_id=None, a
             print(f"BigQuery log error: {errors}")
     except Exception as e:
         print(f"Failed to log to BigQuery: {e}")
-
 
 def get_drive_service():
     """Get Drive service using default credentials"""
@@ -338,6 +341,8 @@ def process_file(request):
     Handles ONLY Google Drive Push Notifications.
     """
     try:
+        log_to_bigquery("INFO", f"=== Function started with RUN_ID: {RUN_ID} ===")
+        
         # Extract Drive notification headers
         channel_id = request.headers.get('X-Goog-Channel-ID', 'unknown')
         resource_state = request.headers.get('X-Goog-Resource-State', 'unknown')
@@ -393,6 +398,8 @@ def process_file(request):
                 processed_files.append(result)
             
             log_to_bigquery("INFO", f"Drive notification processed: {len(processed_files)} files")
+            
+            log_to_bigquery("INFO", f"=== Function completed with RUN_ID: {RUN_ID} ===")
             
             return {
                 "status": "success",
