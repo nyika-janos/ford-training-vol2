@@ -188,9 +188,9 @@ A fájlok helye: `${path.module}/generated_dataform/`
 Ha nem létezne, akkor hozd létre a `definitions/` foldert a gyökérbe és a `workflow_settings.yaml` fájlt a következő tartalommal:
 
 ```
-defaultProject: `${var.project_id}`
-defaultLocation: `${var.region}`
-defaultDataset: `${data.google_bigquery_dataset.demo_dataset.dataset_id}`
+defaultProject: ${var.project_id}
+defaultLocation: ${var.region}
+defaultDataset: ${data.google_bigquery_dataset.demo_dataset.dataset_id}
 defaultAssertionDataset: dataform_assertions
 dataformCoreVersion: 3.0.0
 ```
