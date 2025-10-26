@@ -126,6 +126,23 @@ resource "google_project_iam_member" "dataform_job_user" {
   member  = "serviceAccount:${data.google_service_account.demo_sa.email}"
 }
 
+# Dataform Service Account jogosultságok - hogy használhassa a demo SA-t
+data "google_project" "project" {
+  project_id = var.project_id
+}
+
+resource "google_service_account_iam_member" "dataform_token_creator" {
+  service_account_id = data.google_service_account.demo_sa.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dataform.iam.gserviceaccount.com"
+}
+
+resource "google_service_account_iam_member" "dataform_sa_user" {
+  service_account_id = data.google_service_account.demo_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dataform.iam.gserviceaccount.com"
+}
+
 # Generált Dataform SQL fájlok
 resource "local_file" "dataform_sql_files" {
   for_each = fileset("${path.module}/dataform_templates", "*.sqlx.tpl")
