@@ -1,12 +1,8 @@
 """
-Cloud Function: File Processor
+Cloud Function: File Processor for Google Drive Push Notifications
 
-Processes files from Google Drive:
-1. Downloads file from Drive
-2. Uploads to Cloud Storage
-3. Loads to BigQuery
-4. Logs each step
-5. Publishes Pub/Sub message
+Exclusively handles Google Drive Push Notifications.
+Processes CSV files from a monitored Drive folder.
 """
 
 import os
@@ -14,7 +10,6 @@ import json
 import tempfile
 from datetime import datetime
 from google.cloud import storage, bigquery, pubsub_v1
-from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 import io
@@ -27,6 +22,7 @@ DATASET_ID = os.environ.get('DATASET_ID')
 LOG_TABLE_ID = os.environ.get('LOG_TABLE_ID')
 RAW_DATA_TABLE_ID = os.environ.get('RAW_DATA_TABLE_ID')
 PUBSUB_TOPIC = os.environ.get('PUBSUB_TOPIC')
+MONITORED_FOLDER_ID = os.environ.get('MONITORED_FOLDER_ID', '')
 
 
 def log_to_bigquery(log_level, message, source="cloud_function", user_id=None, additional_info=None):
@@ -51,12 +47,33 @@ def log_to_bigquery(log_level, message, source="cloud_function", user_id=None, a
         print(f"Failed to log to BigQuery: {e}")
 
 
+def get_drive_service():
+    """Get Drive service using default credentials"""
+    return build('drive', 'v3')
+
+
+def is_file_in_monitored_folder(drive_service, file_id):
+    """Check if file is in the monitored folder"""
+    if not MONITORED_FOLDER_ID:
+        return True  # If no folder specified, accept all files
+    
+    try:
+        file = drive_service.files().get(
+            fileId=file_id,
+            fields="parents"
+        ).execute()
+        
+        parents = file.get('parents', [])
+        return MONITORED_FOLDER_ID in parents
+    except Exception as e:
+        log_to_bigquery("ERROR", f"Error checking file parents: {e}", additional_info={"file_id": file_id})
+        return False
+
+
 def download_from_drive(file_id, file_name):
     """Download file from Google Drive"""
     try:
-        # Use default credentials (Service Account from function runtime)
-        drive_service = build('drive', 'v3')
-        
+        drive_service = get_drive_service()
         request = drive_service.files().get_media(fileId=file_id)
         
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file_name}")
@@ -101,7 +118,7 @@ def load_to_bigquery(gcs_uri, file_name):
         job_config = bigquery.LoadJobConfig(
             source_format=bigquery.SourceFormat.CSV,
             skip_leading_rows=1,
-            autodetect=False,  # Use table schema
+            autodetect=False,
             write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
         )
         
@@ -111,7 +128,7 @@ def load_to_bigquery(gcs_uri, file_name):
             job_config=job_config
         )
         
-        load_job.result()  # Wait for job to complete
+        load_job.result()
         
         log_to_bigquery("INFO", f"Data loaded to BigQuery from {file_name}")
         return load_job.output_rows
@@ -139,65 +156,128 @@ def publish_pubsub_message(message_data):
         raise
 
 
+def process_single_file(file_id, file_name):
+    """Process a single file (download → GCS → BigQuery → Pub/Sub)"""
+    log_to_bigquery("INFO", f"Processing file: {file_name}", additional_info={"file_id": file_id})
+    
+    # Step 1: Download from Drive
+    log_to_bigquery("INFO", "Downloading file from Google Drive...")
+    local_file = download_from_drive(file_id, file_name)
+    log_to_bigquery("INFO", f"File downloaded: {file_name}")
+    
+    # Step 2: Upload to GCS
+    log_to_bigquery("INFO", "Uploading file to Cloud Storage...")
+    gcs_uri = upload_to_gcs(local_file, file_name)
+    log_to_bigquery("INFO", f"File uploaded to GCS: {gcs_uri}")
+    
+    # Step 3: Load to BigQuery
+    log_to_bigquery("INFO", "Loading data to BigQuery...")
+    rows_loaded = load_to_bigquery(gcs_uri, file_name)
+    log_to_bigquery("INFO", f"Data loaded to BigQuery: {rows_loaded} rows")
+    
+    # Step 4: Publish Pub/Sub message
+    log_to_bigquery("INFO", "Publishing Pub/Sub message...")
+    pubsub_data = {
+        "file_id": file_id,
+        "file_name": file_name,
+        "gcs_uri": gcs_uri,
+        "rows_loaded": rows_loaded,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    publish_pubsub_message(pubsub_data)
+    log_to_bigquery("INFO", "Pub/Sub message published")
+    
+    # Cleanup
+    os.unlink(local_file)
+    
+    log_to_bigquery("INFO", f"File processing completed successfully: {file_name}")
+    
+    return {
+        "file_id": file_id,
+        "file_name": file_name,
+        "gcs_uri": gcs_uri,
+        "rows_loaded": rows_loaded
+    }
+
+
 def process_file(request):
     """
     Cloud Function entry point
-    Triggered by HTTP POST from Drive webhook
+    
+    Handles ONLY Google Drive Push Notifications.
     """
     try:
-        # Parse request
-        request_json = request.get_json(silent=True)
+        # Extract Drive notification headers
+        channel_id = request.headers.get('X-Goog-Channel-ID', 'unknown')
+        resource_state = request.headers.get('X-Goog-Resource-State', 'unknown')
+        resource_id = request.headers.get('X-Goog-Resource-ID', 'unknown')
         
-        if not request_json:
-            return {"error": "Invalid request"}, 400
+        log_to_bigquery("INFO", "Drive notification received", 
+                       additional_info={
+                           "channel_id": channel_id, 
+                           "state": resource_state,
+                           "resource_id": resource_id
+                       })
         
-        file_id = request_json.get('file_id')
-        file_name = request_json.get('file_name', 'unknown.csv')
+        # Only process 'change' and 'add' notifications
+        if resource_state not in ['change', 'add']:
+            log_to_bigquery("INFO", f"Ignoring notification state: {resource_state}")
+            return {"status": "ignored", "reason": f"state={resource_state}"}, 200
         
-        if not file_id:
-            return {"error": "file_id required"}, 400
+        # Get Drive service
+        drive_service = get_drive_service()
         
-        log_to_bigquery("INFO", f"Function triggered for file: {file_name}", additional_info={"file_id": file_id})
-        
-        # Step 1: Download from Drive
-        log_to_bigquery("INFO", "Downloading file from Google Drive...")
-        local_file = download_from_drive(file_id, file_name)
-        log_to_bigquery("INFO", f"File downloaded: {file_name}")
-        
-        # Step 2: Upload to GCS
-        log_to_bigquery("INFO", "Uploading file to Cloud Storage...")
-        gcs_uri = upload_to_gcs(local_file, file_name)
-        log_to_bigquery("INFO", f"File uploaded to GCS: {gcs_uri}")
-        
-        # Step 3: Load to BigQuery
-        log_to_bigquery("INFO", "Loading data to BigQuery...")
-        rows_loaded = load_to_bigquery(gcs_uri, file_name)
-        log_to_bigquery("INFO", f"Data loaded to BigQuery: {rows_loaded} rows")
-        
-        # Step 4: Publish Pub/Sub message
-        log_to_bigquery("INFO", "Publishing Pub/Sub message...")
-        pubsub_data = {
-            "file_id": file_id,
-            "file_name": file_name,
-            "gcs_uri": gcs_uri,
-            "rows_loaded": rows_loaded,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        publish_pubsub_message(pubsub_data)
-        log_to_bigquery("INFO", "Pub/Sub message published")
-        
-        # Cleanup
-        os.unlink(local_file)
-        
-        log_to_bigquery("INFO", f"File processing completed successfully: {file_name}")
-        
-        return {
-            "status": "success",
-            "file_name": file_name,
-            "gcs_uri": gcs_uri,
-            "rows_loaded": rows_loaded
-        }, 200
-        
+        # Get recent changes
+        try:
+            # Note: In production, store and use pageToken to track changes incrementally
+            results = drive_service.changes().list(
+                pageSize=10,
+                fields="changes(fileId, file(id, name, mimeType, parents))"
+            ).execute()
+            
+            changes = results.get('changes', [])
+            log_to_bigquery("INFO", f"Found {len(changes)} recent changes")
+            
+            processed_files = []
+            
+            for change in changes:
+                file = change.get('file')
+                if not file:
+                    continue
+                
+                file_id = file['id']
+                file_name = file['name']
+                mime_type = file.get('mimeType', '')
+                
+                # Filter 1: Only CSV files
+                if not file_name.endswith('.csv'):
+                    log_to_bigquery("DEBUG", f"Skipping non-CSV file: {file_name}")
+                    continue
+                
+                # Filter 2: Only files in monitored folder
+                if not is_file_in_monitored_folder(drive_service, file_id):
+                    log_to_bigquery("DEBUG", f"Skipping file not in monitored folder: {file_name}")
+                    continue
+                
+                # Process the file
+                log_to_bigquery("INFO", f"Processing file from Drive notification: {file_name}", 
+                               additional_info={"file_id": file_id})
+                
+                result = process_single_file(file_id, file_name)
+                processed_files.append(result)
+            
+            log_to_bigquery("INFO", f"Drive notification processed: {len(processed_files)} files")
+            
+            return {
+                "status": "success",
+                "processed_files": len(processed_files),
+                "files": processed_files
+            }, 200
+            
+        except Exception as e:
+            log_to_bigquery("ERROR", f"Failed to process Drive notification: {e}")
+            return {"error": str(e)}, 500
+            
     except Exception as e:
         log_to_bigquery("ERROR", f"Function failed: {str(e)}")
         return {"error": str(e)}, 500
