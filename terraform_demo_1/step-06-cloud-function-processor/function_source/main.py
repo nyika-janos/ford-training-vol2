@@ -115,10 +115,32 @@ def load_to_bigquery(gcs_uri, file_name):
         client = bigquery.Client(project=PROJECT_ID)
         table_ref = f"{PROJECT_ID}.{DATASET_ID}.{RAW_DATA_TABLE_ID}"
         
+        # Define schema with proper field configurations
+        schema = [
+            bigquery.SchemaField("row_id", "INTEGER", mode="REQUIRED"),
+            bigquery.SchemaField("order_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("order_date", "STRING", mode="REQUIRED"),  # STRING instead of DATE
+            bigquery.SchemaField("ship_date", "STRING", mode="REQUIRED"),   # STRING instead of DATE
+            bigquery.SchemaField("ship_mode", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("customer_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("customer_name", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("segment", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("country", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("city", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("state", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("postal_code", "FLOAT", mode="NULLABLE"),
+            bigquery.SchemaField("region", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("product_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("category", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("sub_category", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("product_name", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("sales", "FLOAT", mode="REQUIRED"),
+        ]
+        
         job_config = bigquery.LoadJobConfig(
             source_format=bigquery.SourceFormat.CSV,
             skip_leading_rows=1,
-            autodetect=False,
+            schema=schema,
             write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
         )
         

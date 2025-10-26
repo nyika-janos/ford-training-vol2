@@ -84,15 +84,15 @@ resource "google_bigquery_table" "raw_data_table" {
     },
     {
       name        = "order_date"
-      type        = "DATE"
+      type        = "STRING"
       mode        = "REQUIRED"
-      description = "Rendelés dátuma"
+      description = "Rendelés dátuma (M/D/YYYY formátum)"
     },
     {
       name        = "ship_date"
-      type        = "DATE"
+      type        = "STRING"
       mode        = "REQUIRED"
-      description = "Szállítás dátuma"
+      description = "Szállítás dátuma (M/D/YYYY formátum)"
     },
     {
       name        = "ship_mode"

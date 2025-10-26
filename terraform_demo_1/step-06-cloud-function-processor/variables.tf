@@ -30,4 +30,5 @@ variable "credentials_file" {
 
 variable "monitored_folder_id" {
   description = "The ID of the monitored Google Drive folder"
+  type        = string
 }
