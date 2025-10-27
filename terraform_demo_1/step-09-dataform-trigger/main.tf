@@ -23,6 +23,10 @@ data "google_pubsub_topic" "demo_topic" {
   name = "${local.name_with_hyphen}-demo-topic-raw"
 }
 
+data "google_project" "project" {
+  project_id = var.project_id
+}
+
 # ============================================================================
 # STEP 9: Dataform Trigger Cloud Function
 # ============================================================================
@@ -95,6 +99,15 @@ resource "google_project_iam_member" "dataform_editor" {
   project = var.project_id
   role    = "roles/dataform.editor"
   member  = "serviceAccount:${data.google_service_account.demo_sa.email}"
+}
+
+# IAM - Cloud Run Invoker a Pub/Sub service account-nak (Gen2 trigger-hez)
+resource "google_cloud_run_service_iam_member" "pubsub_invoker" {
+  project  = google_cloudfunctions2_function.dataform_trigger.project
+  location = google_cloudfunctions2_function.dataform_trigger.location
+  service  = google_cloudfunctions2_function.dataform_trigger.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
 
 # IAM - Pub/Sub Subscriber role (Gen2 Pub/Sub trigger-hez)
