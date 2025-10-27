@@ -124,18 +124,21 @@ def trigger_dataform_workflow():
         log_to_bigquery("ERROR", f"Error triggering Dataform workflow: {str(e)}")
         return False
 
-def dataform_trigger(cloud_event):
+# ... existing code up to line 127 ...
+
+def dataform_trigger(event, context):
     """
-    Cloud Function entry point (Pub/Sub triggered - CloudEvents format)
+    Cloud Function entry point (Pub/Sub triggered)
     
     Args:
-        cloud_event: CloudEvent object containing Pub/Sub message
+        event: Pub/Sub message event data (base64 encoded)
+        context: Event context
     """
     try:
         log_to_bigquery("INFO", f"=== Dataform Trigger Function started with RUN_ID: {RUN_ID} ===")
         
-        # CloudEvent.data már tartalmazza a Pub/Sub message payload-ot (bytes)
-        pubsub_message = cloud_event.data.decode('utf-8')
+        # Decode Pub/Sub message (base64 encoded)
+        pubsub_message = base64.b64decode(event['data']).decode('utf-8')
         message_data = json.loads(pubsub_message)
         
         log_to_bigquery("INFO", "Pub/Sub message received", additional_info=message_data)
