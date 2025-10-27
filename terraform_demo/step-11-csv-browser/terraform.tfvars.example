@@ -1,0 +1,4 @@
+# Másold át terraform.tfvars néven és töltsd ki!
+
+user_name   = "Your Name"
+environment = "demo"
