@@ -101,13 +101,3 @@ resource "google_cloudfunctions2_function" "file_processor" {
     }
   }
 }
-
-# Allow unauthenticated invocations (Gen2 uses Cloud Run IAM)
-resource "google_cloud_run_service_iam_member" "invoker" {
-  project  = google_cloudfunctions2_function.file_processor.project
-  location = google_cloudfunctions2_function.file_processor.location
-  service  = google_cloudfunctions2_function.file_processor.name
-
-  role   = "roles/run.invoker"
-  member = "allUsers"
-}

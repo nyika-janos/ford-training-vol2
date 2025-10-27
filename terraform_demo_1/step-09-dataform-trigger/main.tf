@@ -94,14 +94,11 @@ resource "google_cloudfunctions2_function" "dataform_trigger" {
   }
 }
 
-# IAM - Dataform Editor role a Service Account-nak
-resource "google_project_iam_member" "dataform_editor" {
-  project = var.project_id
-  role    = "roles/dataform.editor"
-  member  = "serviceAccount:${data.google_service_account.demo_sa.email}"
-}
+# ============================================================================
+# IAM Bindings
+# ============================================================================
 
-# IAM - Cloud Run Invoker a Pub/Sub service account-nak (Gen2 trigger-hez)
+# IAM - Cloud Run Invoker a Pub/Sub service account-nak (aki push-olja a message-t)
 resource "google_cloud_run_service_iam_member" "pubsub_invoker" {
   project  = google_cloudfunctions2_function.dataform_trigger.project
   location = google_cloudfunctions2_function.dataform_trigger.location
@@ -110,9 +107,25 @@ resource "google_cloud_run_service_iam_member" "pubsub_invoker" {
   member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
 
+# IAM - Cloud Run Invoker a demo SA-nak (aki alatt fut a function)
+resource "google_cloud_run_service_iam_member" "demo_sa_invoker" {
+  project  = google_cloudfunctions2_function.dataform_trigger.project
+  location = google_cloudfunctions2_function.dataform_trigger.location
+  service  = google_cloudfunctions2_function.dataform_trigger.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${data.google_service_account.demo_sa.email}"
+}
+
 # IAM - Pub/Sub Subscriber role (Gen2 Pub/Sub trigger-hez)
 resource "google_project_iam_member" "pubsub_subscriber" {
   project = var.project_id
   role    = "roles/pubsub.subscriber"
+  member  = "serviceAccount:${data.google_service_account.demo_sa.email}"
+}
+
+# IAM - Dataform Editor role a Service Account-nak
+resource "google_project_iam_member" "dataform_editor" {
+  project = var.project_id
+  role    = "roles/dataform.editor"
   member  = "serviceAccount:${data.google_service_account.demo_sa.email}"
 }
