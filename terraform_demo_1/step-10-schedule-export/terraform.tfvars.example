@@ -1,0 +1,8 @@
+# Másold át terraform.tfvars néven és töltsd ki!
+
+user_name   = "Your Name"
+environment = "demo"
+
+# Dataform repository és workspace név (step-08-ból)
+dataform_repository = "your-name-dataform-repo"
+dataform_workspace  = "your-name-workspace"
