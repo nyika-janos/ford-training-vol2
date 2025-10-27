@@ -1,12 +1,12 @@
 # Terraform GCP Training - Step-by-Step Guide 🚀
 
-Terraform alapok gyakorlati példákkal Google Cloud Platform-on - Teljes Data Pipeline építése Google Drive-ból BigQuery-be.
+Terraform alapok gyakorlati példákkal Google Cloud Platform-on - Teljes Data Pipeline építése Google Drive-ból BigQuery-be, webes böngészővel.
 
 ---
 
 ## 📚 Áttekintés
 
-Ez a training **11 lépésben** vezet végig egy komplett **event-driven data pipeline** építésén GCP-n, fokozatosan bővülő példákkal.
+Ez a training **12 lépésben** vezet végig egy komplett **event-driven data pipeline** építésén GCP-n, fokozatosan bővülő példákkal.
 
 Minden lépés egy külön könyvtárban van, és **építkezik az előző lépésekre**.
 
@@ -26,8 +26,9 @@ Minden lépés egy külön könyvtárban van, és **építkezik az előző lép�
 | **08** | `step-08-dataform/` | BigQuery Aggregált Táblák (5 db) + Dataform | 9 |
 | **09** | `step-09-dataform-trigger/` | Dataform Trigger Function (Pub/Sub) | 8 |
 | **10** | `step-10-scheduled-export/` | CSV Export Function + Cloud Scheduler | 9 |
+| **11** | `step-11-website/` | CSV Browser Website (Cloud Run + Flask) | 3 |
 
-**Összesen: ~41 GCP resource**
+**Összesen: ~44 GCP resource + 1 Docker image + 1 Webes alkalmazás**
 
 ---
 
@@ -57,6 +58,12 @@ Minden lépés egy külön könyvtárban van, és **építkezik az előző lép�
 🔵 Cloud Function: CSV Exporter
     └─→ 📦 GCS: CSV Export Bucket
          └─→ table_name/YYYY-MM-DD_HHMMSS.csv
+              ↓
+🌐 Cloud Run: CSV Browser Website (Step 11)
+    └─→ Flask Web App
+         ├─→ 📂 Mappa böngészés
+         ├─→ 📄 CSV listázás
+         └─→ ⬇️ Fájl letöltés
 ```
 
 ---
@@ -227,6 +234,9 @@ Terraform konfiguráció ellenőrzése. **Nincs resource létrehozás.**
 - 📌 Storage Bucket - adatok (step-03-ból)
 - 📌 BigQuery Dataset, Tables (step-04-ből)
 
+**Manuális lépés:**
+- 🔓 Unauthenticated access beállítása (GCP Console)
+
 **Mit tanulsz:**
 - Cloud Functions Gen2 (Cloud Run alapú)
 - Pub/Sub Topic létrehozása
@@ -266,6 +276,10 @@ Terraform konfiguráció ellenőrzése. **Nincs resource létrehozás.**
 - 📌 Storage Bucket (step-03-ból)
 - 📌 BigQuery Dataset, Tables (step-04-ből)
 - 📌 Pub/Sub Topic, Cloud Function (step-06-ból)
+
+**Manuális lépés:**
+- 🔨 Dataform Repository és Workspace létrehozása (GCP Console)
+- 📤 SQLX fájlok feltöltése
 
 **Mit tanulsz:**
 - BigQuery aggregált táblák
@@ -353,41 +367,87 @@ Terraform konfiguráció ellenőrzése. **Nincs resource létrehozás.**
 
 ---
 
+### Step 11: CSV Browser Website
+**Könyvtár:** `step-11-website/`
+
+**ÚJ Resources:**
+- ✅ 1x Cloud Run Service (Flask web app, Python 3.11)
+- ✅ 2x IAM Binding (Cloud Run Invoker - allUsers, Storage Viewer - SA)
+
+**Data Sources:**
+- 📌 Service Account (step-02-ből)
+- 📌 CSV Export Bucket (step-10-ből)
+
+**Manuális lépések:**
+- 🔨 Docker image build és push (gcr.io)
+- 🔓 Unauthenticated access beállítása (GCP Console)
+
+**Mit tanulsz:**
+- Docker image build és push
+- Cloud Run service deployment
+- Flask web alkalmazás
+- Google Cloud Storage SDK
+- Bootstrap UI (responsive)
+- Streaming file download
+- Public web access (unauthenticated)
+
+**Pipeline lépés:**
+1. Webes böngésző a Cloud Run URL-en
+2. Flask app listázza a CSV fájlokat (mappákban strukturálva)
+3. User kiválaszt egy fájlt
+4. Flask stream-eli a fájlt közvetlenül a GCS bucket-ből
+5. CSV letöltődik a user gépére
+
+**Funkciók:**
+- 📂 Mappa böngészés (breadcrumb navigáció)
+- 📄 CSV fájlok listázása (név, méret, dátum)
+- ⬇️ Fájl letöltés (direct stream)
+- 🎨 Bootstrap UI (modern dizájn)
+- 🌐 Public access (nincs login szükséges)
+
+---
+
 ## 🗑️ Cleanup (Teljes infrastruktúra törlése)
 
 **FONTOS:** Fordított sorrendben töröld a step-eket!
 
 ```bash
-# 1. Step-10
-cd step-10-scheduled-export/
+# 1. Step-11
+cd step-11-website/
+terraform destroy
+# Docker image törlése (opcionális)
+gcloud container images delete gcr.io/ford-training-430008/${YOUR_NAME}-csv-browser:latest --quiet
+
+# 2. Step-10
+cd ../step-10-scheduled-export/
 terraform destroy
 
-# 2. Step-09
+# 3. Step-09
 cd ../step-09-dataform-trigger/
 terraform destroy
 
-# 3. Step-08 (és manuálisan töröld a Dataform repo-t)
+# 4. Step-08 (és manuálisan töröld a Dataform repo-t)
 cd ../step-08-dataform/
 terraform destroy
 # GCP Console → Dataform → Delete Repository
 
-# 4. Step-06
+# 5. Step-06
 cd ../step-06-cloud-function-processor/
 terraform destroy
 
-# 5. Step-05
+# 6. Step-05
 cd ../step-05-iam/
 terraform destroy
 
-# 6. Step-04
+# 7. Step-04
 cd ../step-04-bigquery/
 terraform destroy
 
-# 7. Step-03
+# 8. Step-03
 cd ../step-03-storage/
 terraform destroy
 
-# 8. Step-02
+# 9. Step-02
 cd ../step-02-service-account/
 terraform destroy
 ```
@@ -405,6 +465,8 @@ terraform destroy
 - ✅ **NE futtass `terraform destroy`-t** amíg nem vagy kész az összes step-pel!
 - ✅ Step-06: Manuálisan állítsd be az "Unauthenticated invocations" opciót!
 - ✅ Step-08: Manuálisan hozd létre a Dataform repository-t és workspace-t!
+- ✅ Step-11: Először build-eld a Docker image-t, AZTÁN terraform apply!
+- ✅ Step-11: Manuálisan állítsd be az "Unauthenticated invocations" opciót!
 
 ---
 
@@ -424,13 +486,14 @@ terraform destroy
 
 ### GCP resource-ok:
 1. ✅ Service Account
-2. ✅ Storage Bucket (3 db - data, function source, CSV export)
+2. ✅ Storage Bucket (4 db - data, function sources, CSV export)
 3. ✅ BigQuery Dataset & Tables (9 tábla)
 4. ✅ IAM Bindings (dataset, bucket, project szinten)
 5. ✅ Pub/Sub Topic
 6. ✅ Cloud Functions Gen2 (3 db - HTTP és Pub/Sub trigger)
 7. ✅ Cloud Scheduler
-8. ✅ Dataform (manuális setup)
+8. ✅ Cloud Run (web service)
+9. ✅ Dataform (manuális setup)
 
 ### Python & Data Engineering:
 1. ✅ Cloud Functions Python 3.12
@@ -441,6 +504,23 @@ terraform destroy
 6. ✅ REST API hívások (Dataform API)
 7. ✅ OAuth2 authentication
 8. ✅ Structured logging (BigQuery log table)
+9. ✅ Flask web framework
+10. ✅ Streaming file downloads
+
+### Docker & Container:
+1. ✅ Dockerfile írása
+2. ✅ Docker image build
+3. ✅ Google Container Registry (gcr.io)
+4. ✅ Cloud Build használata
+5. ✅ Multi-stage builds
+
+### Web Development:
+1. ✅ Flask alkalmazás fejlesztés
+2. ✅ Bootstrap 5 UI
+3. ✅ Responsive design
+4. ✅ REST API endpoints
+5. ✅ File streaming
+6. ✅ Public web hosting
 
 ### Architektúra & Best Practices:
 1. ✅ Event-driven architecture
@@ -453,12 +533,14 @@ terraform destroy
 8. ✅ Scheduled jobs
 9. ✅ Retention policies (lifecycle rules)
 10. ✅ Error handling és retry logic
+11. ✅ Serverless architecture
+12. ✅ Scalability patterns
 
 ---
 
 ## 📊 Végeredmény (Teljes infrastruktúra)
 
-A Step 10 végén a következő infrastruktúra jön létre:
+A Step 11 végén a következő infrastruktúra jön létre:
 
 ```
 GCP Project: ford-training-430008
@@ -466,7 +548,7 @@ GCP Project: ford-training-430008
 📁 Service Account (step-02):
 └── terraform-demo-sa-{your-name}
 
-📦 Storage Buckets (3 db):
+📦 Storage Buckets (4 db):
 ├── {project}-{your-name}-demo-bucket (step-03)
 │   └── IAM: Storage Object Admin → SA
 ├── {project}-{your-name}-file-processor (step-06)
@@ -477,6 +559,7 @@ GCP Project: ford-training-430008
 │   └── function-source.zip
 └── {project}-{your-name}-csv-exports (step-10)
     ├── IAM: Storage Object Admin → SA
+    ├── IAM: Storage Object Viewer → SA (step-11)
     ├── Lifecycle: 30 days
     └── monthly_orders_by_ship_mode/
         └── 2024-01-15_060000.csv
@@ -504,7 +587,7 @@ GCP Project: ford-training-430008
 │   ├── Trigger: HTTP (Drive webhook)
 │   ├── Runtime: Python 3.12
 │   ├── Memory: 512M
-│   └── IAM: Cloud Run Invoker → allUsers
+│   └── IAM: Cloud Run Invoker → allUsers (unauthenticated)
 ├── {your-name}-dataform-trigger (step-09)
 │   ├── Trigger: Pub/Sub
 │   ├── Runtime: Python 3.12
@@ -522,6 +605,18 @@ GCP Project: ford-training-430008
     ├── Timezone: Europe/Budapest
     └── Target: CSV Exporter Function
 
+🌐 Cloud Run (step-11):
+└── {your-name}-csv-browser
+    ├── Image: gcr.io/ford-training-430008/{your-name}-csv-browser:latest
+    ├── Runtime: Python 3.11 (Flask)
+    ├── Memory: 512M
+    ├── URL: https://{your-name}-csv-browser-xxxxx-ew.a.run.app
+    ├── IAM: Cloud Run Invoker → allUsers (unauthenticated)
+    └── Service Account: terraform-demo-sa-{your-name}
+
+🐳 Docker Images (GCR):
+└── gcr.io/ford-training-430008/{your-name}-csv-browser:latest
+
 🔨 Dataform (step-08 - manuális):
 └── Repository: {your-dataform-repo}
     └── Workspace: {your-workspace}
@@ -533,6 +628,7 @@ GCP Project: ford-training-430008
 
 🔐 IAM Bindings:
 ├── SA → Storage Object Admin (2 buckets)
+├── SA → Storage Object Viewer (1 bucket - CSV export)
 ├── SA → BigQuery Data Editor (dataset)
 ├── SA → BigQuery Data Viewer (dataset)
 ├── SA → BigQuery Job User (project)
@@ -542,10 +638,12 @@ GCP Project: ford-training-430008
 ├── SA → Cloud Run Invoker (project)
 ├── SA → Service Account User (SA)
 ├── Dataform SA → Service Account Token Creator (project)
-└── Dataform SA → Service Account User (project)
+├── Dataform SA → Service Account User (project)
+├── allUsers → Cloud Run Invoker (file-processor function)
+└── allUsers → Cloud Run Invoker (csv-browser service)
 ```
 
-**Összesen: ~41 GCP resource + 5 Dataform SQLX fájl**
+**Összesen: ~44 GCP resource + 1 Docker image + 5 Dataform SQLX fájl + 1 Webes alkalmazás**
 
 ---
 
@@ -579,8 +677,14 @@ GCP Project: ford-training-430008
    ├─→ Pandas DataFrame → CSV
    └─→ 📦 GCS feltöltés (strukturált mappák)
 
-7. ✅ Kész CSV-k GCS-ben
-   └─→ Készen állnak dashboard-okhoz, riportokhoz, integráció
+7. 🌐 CSV Browser Website (step-11)
+   ├─→ User megnyitja a webes felületet
+   ├─→ Flask app listázza a CSV fájlokat
+   ├─→ User kiválaszt egy fájlt
+   └─→ Flask stream-eli a CSV-t a bucket-ből
+
+8. ✅ Kész CSV letöltve a user gépére
+   └─→ Készen állnak dashboard-okhoz, riportokhoz, elemzésekhez
 ```
 
 ---
@@ -593,7 +697,10 @@ GCP Project: ford-training-430008
 - [BigQuery Documentation](https://cloud.google.com/bigquery/docs)
 - [Cloud Functions Gen2 Documentation](https://cloud.google.com/functions/docs/2nd-gen/overview)
 - [Cloud Scheduler Documentation](https://cloud.google.com/scheduler/docs)
+- [Cloud Run Documentation](https://cloud.google.com/run/docs)
 - [Dataform Documentation](https://cloud.google.com/dataform/docs)
+- [Flask Documentation](https://flask.palletsprojects.com/)
+- [Docker Documentation](https://docs.docker.com/)
 
 ---
 
@@ -646,6 +753,31 @@ terraform init -upgrade
 # Ellenőrizd a function logs-ot (BigQuery query eredmény)
 ```
 
+### Docker image not found (Step 11)
+```bash
+# Build & Push a Docker image-t ELŐSZÖR
+cd step-11-website/csv-browser/
+gcloud builds submit \
+  --tag gcr.io/ford-training-430008/${YOUR_NAME}-csv-browser:latest
+
+# Ellenőrizd
+gcloud container images describe gcr.io/ford-training-430008/${YOUR_NAME}-csv-browser:latest
+
+# AZTÁN terraform apply
+cd ..
+terraform apply
+```
+
+### "403 Forbidden" hiba a webes alkalmazásban (Step 11)
+⚠️ **A leggyakoribb hiba!**
+
+**Megoldás:** Állítsd be az "Unauthenticated invocations" opciót manuálisan!
+
+```bash
+# GCP Console → Cloud Run → {your-name}-csv-browser → EDIT
+# SECURITY → "Allow unauthenticated invocations" ✅ → DEPLOY
+```
+
 ---
 
 ## 🎉 Gratulálunk!
@@ -661,6 +793,8 @@ Ha végigcsináltad az összes lépést, készen állsz komplex GCP infrastrukt�
 - 🔔 Adj hozzá alerting-et (Cloud Monitoring, Pub/Sub notifications)
 - 🔐 Próbálj ki Secret Manager-t érzékeny adatokhoz
 - 🌍 Multi-region deployment
+- 🤖 Integráld ML modelleket (BigQuery ML)
+- 📧 Email notifikációk Cloud Functions-ből
 
 ### Use case ötletek:
 - 📈 Real-time analytics dashboard
@@ -668,11 +802,14 @@ Ha végigcsináltad az összes lépést, készen állsz komplex GCP infrastrukt�
 - 🔄 ETL pipeline más forrásokból (API-k, adatbázisok)
 - 🤖 ML pipeline (BigQuery ML integration)
 - 📊 Data warehouse építés
+- 🌐 Public data portál (mint a step-11 CSV browser)
+- 📱 Mobile app backend (Cloud Run API)
+- 🔍 Log analytics és monitoring dashboard
 
 ---
 
 **Készítette:** Nyika János - Nextent Training Team  
-**Verzió:** 2.0  
+**Verzió:** 2.1  
 **Utolsó frissítés:** 2025-01
 
 ---
@@ -689,12 +826,16 @@ terraform output      # Outputs megjelenítés
 terraform destroy     # Resource törlés
 terraform fmt         # Formázás
 terraform show        # State megjelenítés
+terraform state list  # Összes resource listázása
 ```
 
 ### GCP CLI parancsok:
 ```bash
 # Function logs
-gcloud functions logs read {function-name} --region=europe-west1 --limit=50
+gcloud functions logs read {function-name} --region=europe-west1 --limit=50 --gen2
+
+# Cloud Run logs
+gcloud run services logs read {service-name} --region=europe-west1 --limit=50
 
 # Scheduler job trigger
 gcloud scheduler jobs run {job-name} --location=europe-west1
@@ -707,6 +848,24 @@ gsutil ls -r gs://{bucket-name}/
 
 # Pub/Sub message publish
 gcloud pubsub topics publish {topic-name} --message='{"test": "data"}'
+
+# Container images list
+gcloud container images list --repository=gcr.io/ford-training-430008
+
+# Cloud Build submit
+gcloud builds submit --tag gcr.io/{project}/{image-name}:latest
+```
+
+### Docker parancsok (Step 11):
+```bash
+# Build
+docker build -t gcr.io/ford-training-430008/{your-name}-csv-browser:latest .
+
+# Push (ha van lokális Docker)
+docker push gcr.io/ford-training-430008/{your-name}-csv-browser:latest
+
+# Cloud Build (nincs szükség lokális Docker-re!)
+gcloud builds submit --tag gcr.io/ford-training-430008/{your-name}-csv-browser:latest
 ```
 
 ---
@@ -720,6 +879,7 @@ gcloud pubsub topics publish {topic-name} --message='{"test": "data"}'
 - ✅ Outputs
 - ✅ Dependencies
 - ✅ Multi-step projects
+- ✅ State management
 
 **GCP:**
 - ✅ IAM & Security
@@ -727,7 +887,9 @@ gcloud pubsub topics publish {topic-name} --message='{"test": "data"}'
 - ✅ Cloud Functions Gen2
 - ✅ Pub/Sub messaging
 - ✅ Cloud Scheduler
+- ✅ Cloud Run (serverless web hosting)
 - ✅ Dataform SQL transformations
+- ✅ Container Registry
 
 **Data Engineering:**
 - ✅ Event-driven pipelines
@@ -735,16 +897,124 @@ gcloud pubsub topics publish {topic-name} --message='{"test": "data"}'
 - ✅ Data transformation
 - ✅ Scheduled jobs
 - ✅ Logging & monitoring
+- ✅ Data quality & governance
 
 **Python:**
 - ✅ Cloud Functions development
 - ✅ GCP SDK-k használata
 - ✅ Pandas data manipulation
 - ✅ REST API integration
+- ✅ Flask web framework
 - ✅ Error handling
 
-Készen állsz a Data Engineer szerepre! 🚀💪
+**Docker & Containers:**
+- ✅ Dockerfile authoring
+- ✅ Container image building
+- ✅ Registry management (gcr.io)
+- ✅ Cloud Build integration
 
-**Készítette:** Nyika János - Nextent Training Team  
-**Verzió:** 1.0  
-**Utolsó frissítés:** 2025
+**Web Development:**
+- ✅ Flask application development
+- ✅ Bootstrap UI framework
+- ✅ Responsive design
+- ✅ File streaming
+- ✅ Public web hosting
+
+Készen állsz a **Data Engineer** és **Cloud Architect** szerepre! 🚀💪
+
+---
+
+## 🎁 Bónusz: Teljes pipeline egyetlen paranccsal
+
+Ha szeretnéd gyorsan tesztelni a teljes pipeline-t:
+
+```bash
+# 1. Trigger file processor (manuálisan)
+cd step-06-cloud-function-processor/
+curl -X POST $(terraform output -raw cloud_function_url) \
+  -H "Content-Type: application/json" \
+  -d '{"file_id": "test-123", "file_name": "test.csv"}'
+
+# 2. Várj ~30 sec (Pub/Sub → Dataform Trigger → Dataform Workflow)
+
+# 3. Ellenőrizd a BigQuery aggregált táblákat
+bq query --use_legacy_sql=false \
+  'SELECT * FROM `ford-training-430008.{your_name}_demo_dataset.monthly_orders_by_ship_mode` LIMIT 10'
+
+# 4. Trigger CSV export (Cloud Scheduler helyett manuálisan)
+cd ../step-10-scheduled-export/
+curl -X POST $(terraform output -raw csv_exporter_function_url) \
+  -H "Authorization: Bearer $(gcloud auth print-identity-token)"
+
+# 5. Ellenőrizd a CSV fájlokat
+gsutil ls gs://ford-training-430008-{your-name}-csv-exports/monthly_orders_by_ship_mode/
+
+# 6. Nyisd meg a webes böngészőt
+cd ../step-11-website/
+open $(terraform output -raw cloud_run_url)
+```
+
+🎉 **Kész!** Látnod kell a teljes pipeline működését! 🚀
+
+---
+
+## 📸 Screenshots (GCP Console)
+
+### Cloud Run CSV Browser (Step 11):
+```
+🌐 https://{your-name}-csv-browser-xxxxx-ew.a.run.app
+
+Főoldal:
++----------------------------------+
+| CSV Export Browser               |
++----------------------------------+
+| 📂 monthly_orders_by_ship_mode   |
+| 📂 monthly_orders_us_state       |
+| 📂 monthly_favorite_product      |
+| 📂 monthly_customer_segment...   |
+| 📂 monthly_category_revenue...   |
++----------------------------------+
+
+Mappa nézet:
++----------------------------------+
+| Root / monthly_orders_by_ship... |
++----------------------------------+
+| 📄 2024-01-15_060000.csv  12 KB  |
+| 📄 2024-01-15_070000.csv  12 KB  |
+| 📄 2024-01-15_080000.csv  12 KB  |
++----------------------------------+
+```
+
+### BigQuery Aggregált Táblák (Step 08):
+```
+📊 ford-training-430008
+  └── {your_name}_demo_dataset
+      ├── 📄 monthly_orders_by_ship_mode (4 cols, XXX rows)
+      ├── 📄 monthly_orders_us_state (3 cols, XXX rows)
+      ├── 📄 monthly_favorite_product (5 cols, XXX rows)
+      ├── 📄 monthly_customer_segment_analysis (6 cols, XXX rows)
+      └── 📄 monthly_category_revenue_trend (6 cols, XXX rows)
+```
+
+---
+
+**🎊 GRATULÁLUNK AZ ÖSSZES LÉPÉS BEFEJEZÉSÉHEZ! 🎊**
+
+Most már van egy **production-ready data pipeline-od** Google Cloud Platform-on, Terraform-mal menedzselve! 🏆
+
+**Teljes achievement lista:**
+- ✅ 12 Terraform step befejezve
+- ✅ ~44 GCP resource létrehozva
+- ✅ 3 Cloud Function deployed
+- ✅ 1 Cloud Run web app deployed
+- ✅ 1 Docker image built & pushed
+- ✅ 5 Dataform SQL transzformáció
+- ✅ Event-driven architecture megértve
+- ✅ Infrastructure as Code mastered
+
+**Share your success! 📱**
+- Screenshot a webes alkalmazásodról
+- Export a Terraform state-ből
+- Dokumentáld a saját használati eseteidet
+
+**Happy cloud engineering! ☁️🚀**
