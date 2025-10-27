@@ -107,13 +107,17 @@ resource "google_cloud_run_service_iam_member" "pubsub_invoker" {
   member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
 
-# IAM - Cloud Run Invoker a demo SA-nak (aki alatt fut a function)
-resource "google_cloud_run_service_iam_member" "demo_sa_invoker" {
-  project  = google_cloudfunctions2_function.dataform_trigger.project
-  location = google_cloudfunctions2_function.dataform_trigger.location
-  service  = google_cloudfunctions2_function.dataform_trigger.name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${data.google_service_account.demo_sa.email}"
+# IAM - Cloud Run Invoker role projekt szinten a demo SA-nak
+resource "google_project_iam_member" "demo_sa_run_invoker" {
+  project = var.project_id
+  role    = "roles/run.invoker"
+  member  = "serviceAccount:${data.google_service_account.demo_sa.email}"
+}
+
+resource "google_service_account_iam_member" "demo_sa_user" {
+  service_account_id = data.google_service_account.demo_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${data.google_service_account.demo_sa.email}"
 }
 
 # IAM - Pub/Sub Subscriber role (Gen2 Pub/Sub trigger-hez)
