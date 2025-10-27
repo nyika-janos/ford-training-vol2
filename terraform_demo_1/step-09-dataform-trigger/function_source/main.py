@@ -12,8 +12,8 @@ from datetime import datetime
 from google.cloud import bigquery
 import requests
 from google.auth.transport.requests import Request
-from google.oauth2 import service_account
 import google.auth
+import base64
 
 # Environment variables
 PROJECT_ID = os.environ.get('PROJECT_ID')
@@ -62,34 +62,61 @@ def trigger_dataform_workflow():
         # Get access token
         access_token = get_access_token()
         
-        # Dataform API endpoint
-        api_url = (
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        
+        # STEP 1: Create compilation result from workspace
+        compilation_url = (
+            f"https://dataform.googleapis.com/v1beta1/"
+            f"projects/{PROJECT_ID}/locations/{REGION}/"
+            f"repositories/{DATAFORM_REPOSITORY}/"
+            f"compilationResults"
+        )
+        
+        # Teljes workspace path kell!
+        workspace_path = (
+            f"projects/{PROJECT_ID}/locations/{REGION}/"
+            f"repositories/{DATAFORM_REPOSITORY}/workspaces/{DATAFORM_WORKSPACE}"
+        )
+        
+        compilation_body = {
+            "workspace": workspace_path
+        }
+        
+        compilation_response = requests.post(compilation_url, json=compilation_body, headers=headers)
+        
+        if compilation_response.status_code not in [200, 201]:
+            error_msg = f"Failed to create compilation: {compilation_response.status_code} - {compilation_response.text}"
+            log_to_bigquery("ERROR", error_msg)
+            return False
+        
+        compilation_result = compilation_response.json()
+        compilation_name = compilation_result.get('name')
+        log_to_bigquery("INFO", f"Compilation created: {compilation_name}")
+        
+        # STEP 2: Create workflow invocation with compilation result
+        invocation_url = (
             f"https://dataform.googleapis.com/v1beta1/"
             f"projects/{PROJECT_ID}/locations/{REGION}/"
             f"repositories/{DATAFORM_REPOSITORY}/"
             f"workflowInvocations"
         )
         
-        # Request body - use workspace compilation
-        request_body = {
-            "compilationResult": f"projects/{PROJECT_ID}/locations/{REGION}/repositories/{DATAFORM_REPOSITORY}/workspaces/{DATAFORM_WORKSPACE}/compilationResults/latest"
+        invocation_body = {
+            "compilationResult": compilation_name
         }
         
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
-        }
+        invocation_response = requests.post(invocation_url, json=invocation_body, headers=headers)
         
-        # Make API call
-        response = requests.post(api_url, json=request_body, headers=headers)
-        
-        if response.status_code in [200, 201]:
-            result = response.json()
+        if invocation_response.status_code in [200, 201]:
+            result = invocation_response.json()
             invocation_name = result.get('name', 'unknown')
             log_to_bigquery("INFO", f"Dataform workflow triggered successfully: {invocation_name}")
             return True
         else:
-            error_msg = f"Failed to trigger Dataform workflow: {response.status_code} - {response.text}"
+            error_msg = f"Failed to trigger workflow: {invocation_response.status_code} - {invocation_response.text}"
             log_to_bigquery("ERROR", error_msg)
             return False
             
@@ -99,17 +126,16 @@ def trigger_dataform_workflow():
 
 def dataform_trigger(cloud_event):
     """
-    Cloud Function entry point (Pub/Sub triggered)
+    Cloud Function entry point (Pub/Sub triggered - CloudEvents format)
     
     Args:
-        cloud_event: CloudEvent object from Pub/Sub
+        cloud_event: CloudEvent object containing Pub/Sub message
     """
     try:
         log_to_bigquery("INFO", f"=== Dataform Trigger Function started with RUN_ID: {RUN_ID} ===")
         
-        # Decode Pub/Sub message
-        import base64
-        pubsub_message = base64.b64decode(cloud_event.data["message"]["data"]).decode('utf-8')
+        # CloudEvent.data már tartalmazza a Pub/Sub message payload-ot (bytes)
+        pubsub_message = cloud_event.data.decode('utf-8')
         message_data = json.loads(pubsub_message)
         
         log_to_bigquery("INFO", "Pub/Sub message received", additional_info=message_data)
@@ -130,6 +156,9 @@ def dataform_trigger(cloud_event):
         
         log_to_bigquery("INFO", f"=== Function completed with RUN_ID: {RUN_ID} ===")
         
+        return ("OK", 200)
+        
     except Exception as e:
         log_to_bigquery("ERROR", f"Function failed: {str(e)}")
-        raise
+        print(f"ERROR: {str(e)}")
+        return ("Error", 500)

@@ -114,7 +114,28 @@ terraform apply
 
 ⏱️ **Várható idő:** 3-4 perc (Gen2 deployment lassabb mint Gen1)
 
-### 8. Ellenőrzés
+### 8. 🔓 **MANUÁLIS LÉPÉS: Unauthenticated hozzáférés engedélyezése**
+
+⚠️ **FONTOS:** A Google Drive webhook **nem küld authentication header-t**, ezért a function-t **unauthenticated** módba kell állítani.
+
+**GCP Console-ban:**
+1. GCP Console → **Cloud Functions**
+2. Keresd meg: `{your-name}-file-processor`
+3. Kattints rá → **EDIT** gomb (felül)
+4. Görgess le a **SECURITY** részhez
+5. **Authentication:** Válaszd az **"Allow unauthenticated invocations"** opciót
+6. Kattints a **NEXT** gombra (alul)
+7. Kattints a **DEPLOY** gombra
+
+✅ Most már a Drive webhook hívhatja authentication nélkül!
+
+**Miért kell ez?**
+- A Terraform `allUsers` jogot ad Cloud Run Invoker-nek
+- DE ez még mindig "Authentication Required" módot eredményez
+- A Drive webhook nem tud OAuth token-t küldeni
+- Ezért manuálisan kell átállítani "Unauthenticated"-re
+
+### 9. Ellenőrzés
 ```bash
 terraform output
 ```
@@ -138,9 +159,10 @@ terraform output
 1. GCP Console → **Cloud Functions** (Gen2 címke látszik)
 2. Keresd meg: `{your-name}-file-processor`
 3. **TRIGGER** fül → **TRIGGER URL** (ez az outputs-ban is szerepel)
-4. **SOURCE** fül → Nézd meg a Python kódot
-5. **LOGS** fül → Ide jönnek a function logok
-6. **METRICS** fül → Gen2 metrics (invocations, memory, CPU)
+4. **SECURITY** fül → Ellenőrizd: **"Allow unauthenticated invocations"** ✅
+5. **SOURCE** fül → Nézd meg a Python kódot
+6. **LOGS** fül → Ide jönnek a function logok
+7. **METRICS** fül → Gen2 metrics (invocations, memory, CPU)
 
 ### Pub/Sub Topic:
 1. GCP Console → Pub/Sub → Topics
@@ -194,6 +216,7 @@ Ez NEM törli:
 - ✅ Cloud Run IAM binding (Gen2 alapú)
 - ✅ Pub/Sub Topic létrehozása
 - ✅ Function source code packaging (ZIP)
+- ✅ **Unauthenticated access** beállítása (manuális lépés)
 - ✅ Multi-step Terraform projektek
 
 ---
@@ -207,6 +230,7 @@ A Cloud Function a demo Service Account-tal fut, aminek már van (step-05-ből):
 És most hozzáadtuk (step-06-ban):
 - ✅ **Pub/Sub Publisher** (PROJECT szintű - message küldés)
 - ✅ **Cloud Run Invoker** (Gen2 function hívás - allUsers)
+- ✅ **Unauthenticated invocations** (manuálisan beállítva - Drive webhook-hoz)
 
 ---
 
@@ -214,7 +238,8 @@ A Cloud Function a demo Service Account-tal fut, aminek már van (step-05-ből):
 
 - **Cloud Functions Gen2** használ (Cloud Run alapú)
 - **Python 3.12** runtime
-- A function **HTTP trigger**-rel rendelkezik (nem auth required)
+- A function **HTTP trigger**-rel rendelkezik
+- **Unauthenticated access:** Manuálisan kell beállítani (8. lépés)! ⚠️
 - Gen2 IAM: **Cloud Run Service IAM** (nem Cloud Functions IAM)
 - A Terraform automatikusan ZIP-eli és feltölti a kódot
 - A function URL-t használjuk majd a Step-07-ben (Drive webhook regisztráció)
@@ -237,4 +262,7 @@ step-06-cloud-function-processor/
 ├── locals.tf
 ├── main.tf            ← BŐVÜLT (Minden + Pub/Sub topic, Cloud Function)
 ├── outputs.tf
-└── terraform.tfvars.example
+├── terraform.tfvars.example
+└── function_source/
+    ├── main.py
+    └── requirements.txt
