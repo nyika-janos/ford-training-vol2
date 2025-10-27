@@ -1,13 +1,13 @@
-# Step 09: Dataform Workflow Trigger
+# Step 10: Scheduled CSV Export
 
 ## 🎯 Cél
-Pub/Sub triggered Cloud Function Gen2 létrehozása, ami automatikusan elindítja a Dataform workflow-t, amikor új fájl kerül feldolgozásra.
+Cloud Scheduler és Cloud Function Gen2 létrehozása, ami **óránként automatikusan** exportálja a Dataform aggregált táblákat CSV formátumba egy dedikált Storage Bucket-be.
 
 ## ⚠️ **FONTOS: Előfeltételek**
 
 **Step-02, Step-03, Step-04, Step-05, Step-06 ÉS Step-08 resource-ainak létezniük KELL!**
 
-**Step-08 Dataform setup-nak KÉSZ kell lennie!** (Repository + Workspace létrehozva, SQLX fájlok feltöltve)
+**Step-08 Dataform workflow-nak FUTNIA KELLETT!** (Az aggregált táblák adatokkal fel vannak töltve)
 
 Ha még nem futtattad le őket sorrendben:
 ```bash
@@ -25,56 +25,71 @@ cd ../step-08-dataform/ && terraform apply
 
 ## 📦 Mit hoz létre ez a step?
 
-### ÚJ resource-ok (step-09 specifikusak):
-- ✅ 1x Storage Bucket (Dataform trigger function forráskódjához)
+### ÚJ resource-ok (step-10 specifikusak):
+- ✅ 1x Storage Bucket (CSV export-ok tárolására, 30 napos lifecycle)
+- ✅ 1x Storage Bucket (Cloud Function forráskódjához)
 - ✅ 1x Storage Bucket Object (function ZIP fájl)
-- ✅ 1x **Cloud Function Gen2** (Pub/Sub trigger, Python 3.12)
-- ✅ 5x IAM Binding (Cloud Run Invoker, SA User, Pub/Sub Subscriber, Dataform Editor)
+- ✅ 1x **Cloud Function Gen2** (HTTP trigger, Python 3.12)
+- ✅ 1x **Cloud Scheduler Job** (óránkénti futás)
+- ✅ 3x IAM Binding (Cloud Run Invoker, Storage Admin, BQ Viewer)
 
-**Összesen: 8 ÚJ resource**
+**Összesen: 9 ÚJ resource**
 
 ### Már létező resource-ok (data sources):
 - 📌 Service Account (step-02-ből)
-- 📌 Storage Bucket - adatok tárolására (step-03-ból)
 - 📌 BigQuery Dataset (step-04-ből)
 - 📌 BigQuery Log Table (step-04-ből)
-- 📌 Pub/Sub Topic (step-06-ból)
+- 📌 5x BigQuery Aggregált Táblák (step-08-ból):
+  - `monthly_orders_by_ship_mode`
+  - `monthly_orders_us_state`
+  - `monthly_favorite_product`
+  - `monthly_customer_segment_analysis`
+  - `monthly_category_revenue_trend`
 
 ---
 
-## 🚀 Cloud Function Gen2 - Pub/Sub Trigger
+## 🚀 Cloud Scheduler + Cloud Function Gen2
 
 ### Működés:
-1. 📥 **Pub/Sub message érkezik** (step-06 file processor küldi)
-2. 🔍 **Message feldolgozás** (file_name, rows_loaded kinyerése)
-3. 🔨 **Dataform Compilation** (workspace alapján)
-4. ▶️ **Dataform Workflow Invocation** (compilation result alapján)
-5. 📝 **Logging** (minden lépés a BigQuery log táblába)
+1. ⏰ **Cloud Scheduler** óránként HTTP POST request-et küld (minden óra 0. percében)
+2. 📥 **Cloud Function** fogadja a request-et
+3. 🔍 **BigQuery query** minden aggregált táblára (5 db)
+4. 📊 **Pandas DataFrame** létrehozása
+5. 💾 **CSV export** memóriában
+6. ☁️ **Upload GCS**-be struktúrált mappákba:
+   ```
+   csv-export-bucket/
+   ├── monthly_orders_by_ship_mode/
+   │   ├── 2024-01-15_060000.csv
+   │   ├── 2024-01-15_070000.csv
+   │   └── 2024-01-15_080000.csv
+   ├── monthly_orders_us_state/
+   │   └── ...
+   ```
+7. 📝 **Logging** BigQuery log táblába
 
 ### Előnyök:
-- ✅ **Automatikus trigger** - nincs manuális workflow indítás
-- ✅ **Event-driven** - csak akkor fut, ha új adat érkezik
+- ✅ **Automatikus ütemezés** - óránként fut, manual beavatkozás nélkül
+- ✅ **Pandas export** - gyors és egyszerű kis adatmennyiségnél
+- ✅ **Strukturált tárolás** - mappák táblánként
+- ✅ **Időbélyegzett fájlok** - egyszerű verziókövetés
+- ✅ **30 napos lifecycle** - automatikus cleanup régi fájlokból
 - ✅ **Retry policy** - újrapróbálkozás hiba esetén
-- ✅ **Scalable** - 0-3 instance automatikus scaling
-- ✅ **Teljes logging** - minden lépés naplózva
+- ✅ **Teljes logging** - minden export naplózva
 
 ---
 
-## 🔧 Dataform API használat
+## ⏰ Cloud Scheduler konfiguráció
 
-A function a **Dataform REST API**-t használja:
+- **Schedule:** `0 * * * *` (óránként, a 0. percben)
+- **Timezone:** `Europe/Budapest`
+- **Timeout:** 320 másodperc
+- **Retry:** 3 alkalommal
+- **Trigger:** HTTP POST a Cloud Function URL-re
+- **Auth:** OIDC token (Service Account)
 
-### 1. Compilation Result létrehozása:
-```
-POST /v1beta1/projects/{project}/locations/{region}/repositories/{repo}/compilationResults
-Body: { "workspace": "projects/.../workspaces/{workspace}" }
-```
-
-### 2. Workflow Invocation indítása:
-```
-POST /v1beta1/projects/{project}/locations/{region}/repositories/{repo}/workflowInvocations
-Body: { "compilationResult": "{compilation_name}" }
-```
+**Példa futási időpontok:**
+- 06:00, 07:00, 08:00, 09:00... (minden egész óra)
 
 ---
 
@@ -82,14 +97,14 @@ Body: { "compilationResult": "{compilation_name}" }
 
 ### 1. Navigálj a könyvtárba
 ```bash
-cd step-09-dataform-trigger/
+cd step-10-scheduled-export/
 ```
 
 ### 2. Cloud Function kód ellenőrzése
 
 A `function_source/` könyvtárban találod:
-- `main.py` - Dataform trigger Python 3.12 kód
-- `requirements.txt` - Python függőségek
+- `main.py` - CSV export Python 3.12 kód
+- `requirements.txt` - Python függőségek (pandas, BigQuery, Storage)
 
 ```bash
 ls -la function_source/
@@ -102,20 +117,12 @@ cp terraform.tfvars.example terraform.tfvars
 ```
 
 ### 4. Szerkeszd a terraform.tfvars-t
-
-⚠️ **FONTOS:** Add meg a Dataform repository és workspace neveket (step-08-ból)!
-
 ```tfvars
-user_name           = "Gipsz Jakab"
-environment         = "demo"
-dataform_repository = "your-dataform-repo-name"
-dataform_workspace  = "your-workspace-name"
+user_name   = "Gipsz Jakab"
+environment = "demo"
 ```
 
-**Dataform nevek megtalálása:**
-1. GCP Console → **Dataform**
-2. Repository neve (pl. `demo-dataform-repo`)
-3. Workspace neve (pl. `main-workspace`)
+⚠️ **FONTOS:** Ugyanazt a `user_name`-t használd, mint az előző step-ekben!
 
 ### 5. Terraform inicializálás
 ```bash
@@ -127,9 +134,9 @@ terraform init
 terraform plan
 ```
 
-Kimenet: `Plan: 8 to add, 0 to change, 0 to destroy.`
+Kimenet: `Plan: 9 to add, 0 to change, 0 to destroy.`
 
-✅ **Ellenőrizd:** Csak **8 ÚJ** resource-ot hoz létre!
+✅ **Ellenőrizd:** Csak **9 ÚJ** resource-ot hoz létre!
 
 ### 7. Apply (létrehozás)
 ```bash
@@ -146,164 +153,222 @@ terraform output
 ---
 
 ## 📤 Outputs
-- `dataform_trigger_function_name` - Dataform trigger function neve (**ÚJ**)
-- `pubsub_topic_name` - Figyelt Pub/Sub topic neve (data source, step-06-ból)
-- `dataform_repository` - Dataform repository név (**ÚJ**)
-- `dataform_workspace` - Dataform workspace név (**ÚJ**)
+- `csv_export_bucket_name` - CSV export bucket neve (**ÚJ**)
+- `csv_exporter_function_name` - CSV exporter function neve (**ÚJ**)
+- `csv_exporter_function_url` - CSV exporter function URL (**ÚJ**)
+- `scheduler_job_name` - Cloud Scheduler job neve (**ÚJ**)
+- `schedule` - Ütemezés (cron formátum) (**ÚJ**)
 
 ---
 
-## 🔍 Cloud Function ellenőrzése GCP Console-ban
+## 🔍 Ellenőrzés GCP Console-ban
 
 ### Cloud Function Gen2:
 1. GCP Console → **Cloud Functions** (Gen2 címke látszik)
-2. Keresd meg: `{your-name}-dataform-trigger`
-3. **TRIGGER** fül → **Event Type:** `google.cloud.pubsub.topic.v1.messagePublished`
-4. **TRIGGER** fül → **Pub/Sub Topic:** `{your-name}-demo-topic-raw`
+2. Keresd meg: `{your-name}-csv-exporter`
+3. **TRIGGER** fül → **Trigger Type:** HTTPS
+4. **TRIGGER** fül → **URL:** Ezt hívja a Scheduler
 5. **SOURCE** fül → Nézd meg a Python kódot
 6. **LOGS** fül → Ide jönnek a function logok
 7. **CONFIGURATION** fül:
    - Runtime: Python 3.12
-   - Memory: 256 MB
-   - Timeout: 60 seconds
-   - Environment variables: PROJECT_ID, DATASET_ID, DATAFORM_REPOSITORY, stb.
+   - Memory: 512 MB
+   - Timeout: 300 seconds (5 perc)
+   - Environment variables: PROJECT_ID, DATASET_ID, CSV_BUCKET, AGGREGATED_TABLES
 
-### Pub/Sub Subscription:
-1. GCP Console → **Pub/Sub** → **Subscriptions**
-2. Automatikusan létrejött subscription: `gcf-{function-name}-{region}-{topic-name}`
-3. Delivery type: **Push** (Cloud Function-höz)
+### Cloud Scheduler Job:
+1. GCP Console → **Cloud Scheduler**
+2. Keresd meg: `{your-name}-csv-export-schedule`
+3. **Frequency:** `0 * * * *` (óránként)
+4. **Timezone:** `Europe/Budapest`
+5. **Target:** HTTP
+6. **URL:** Cloud Function URL
+7. **Last run:** Látod az utolsó futást
+8. **Next run:** Következő ütemezett futás
+
+### CSV Export Bucket:
+1. GCP Console → **Cloud Storage** → Buckets
+2. Keresd meg: `ford-training-430008-{your-name}-csv-exports`
+3. Nézd meg a mappákat:
+   ```
+   monthly_orders_by_ship_mode/
+   monthly_orders_us_state/
+   monthly_favorite_product/
+   monthly_customer_segment_analysis/
+   monthly_category_revenue_trend/
+   ```
+4. Menj be egy mappába → látod a timestamp-es CSV fájlokat
+5. **Lifecycle** fül → 30 napos törlési szabály
 
 ---
 
-## 🧪 Teljes workflow tesztelése
+## 🧪 Tesztelés
 
-### 1. Trigger a file processor function-t (step-06):
+### 1. Manuális trigger (Scheduler-en keresztül):
 
 ```bash
-# Mentsd el a file processor URL-t
-cd ../step-06-cloud-function-processor/
-FILE_PROCESSOR_URL=$(terraform output -raw cloud_function_url)
-
-# Teszt kérés (dummy adatokkal)
-curl -X POST $FILE_PROCESSOR_URL \
-  -H "Content-Type: application/json" \
-  -d '{
-    "file_id": "test-file-id-123",
-    "file_name": "test_superstore.csv"
-  }'
+# GCP Console → Cloud Scheduler → Job kiválasztása → RUN NOW gomb
 ```
 
-### 2. Ellenőrzés - File Processor Logs:
+Vagy CLI-vel:
 ```bash
-# GCP Console → Cloud Functions → {your-name}-file-processor → LOGS
+gcloud scheduler jobs run {your-name}-csv-export-schedule \
+  --location=europe-west1
 ```
 
-Látnod kell:
-- ✅ File processing started
-- ✅ Pub/Sub message published
+### 2. Közvetlen function hívás (HTTP-n keresztül):
 
-### 3. Ellenőrzés - Dataform Trigger Logs:
 ```bash
-# GCP Console → Cloud Functions → {your-name}-dataform-trigger → LOGS
+# Mentsd el a function URL-t
+FUNCTION_URL=$(terraform output -raw csv_exporter_function_url)
+
+# Teszt kérés (Service Account OIDC token-nel)
+curl -X POST $FUNCTION_URL \
+  -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+  -H "Content-Type: application/json"
 ```
 
-Látnod kell:
-- ✅ Dataform Trigger Function started
-- ✅ Pub/Sub message received
-- ✅ Starting Dataform workflow trigger
-- ✅ Compilation created
-- ✅ Dataform workflow triggered successfully
-
-### 4. Ellenőrzés - Dataform Workflow:
+### 3. Ellenőrzés - Function Logs:
 ```bash
-# GCP Console → Dataform → Repository → Workflow Invocations
+# GCP Console → Cloud Functions → {your-name}-csv-exporter → LOGS
 ```
 
 Látnod kell:
-- ✅ Új workflow invocation (automatikusan indult!)
-- ✅ Status: Running → Succeeded
-- ✅ Execution graph (5 tábla frissítve)
+- ✅ CSV Export Function started
+- ✅ Starting export for: monthly_orders_by_ship_mode
+- ✅ Table monthly_orders_by_ship_mode loaded: X rows
+- ✅ CSV uploaded: gs://...
+- ✅ Export completed: 5 successful, 0 failed
+
+### 4. Ellenőrzés - CSV fájlok:
+
+```bash
+# Lista az összes CSV-ről
+gsutil ls -r gs://ford-training-430008-{your-name}-csv-exports/
+
+# Egy konkrét tábla CSV-jei
+gsutil ls gs://ford-training-430008-{your-name}-csv-exports/monthly_orders_by_ship_mode/
+
+# CSV tartalom ellenőrzése
+gsutil cat gs://ford-training-430008-{your-name}-csv-exports/monthly_orders_by_ship_mode/2024-01-15_060000.csv | head -20
+```
 
 ### 5. Ellenőrzés - BigQuery Log Table:
+
 ```sql
 SELECT 
   timestamp,
   run_id,
   log_level,
   message,
-  source
+  source,
+  additional_info
 FROM `{project_id}.{dataset_id}.{your-name}-log-table`
-WHERE source = 'dataform_trigger'
+WHERE source = 'csv_exporter'
 ORDER BY timestamp DESC
-LIMIT 20;
+LIMIT 50;
 ```
 
 Látnod kell:
 - ✅ Function started
-- ✅ Pub/Sub message received
-- ✅ Compilation created
-- ✅ Workflow triggered successfully
-- ✅ Function completed
+- ✅ Querying table: monthly_orders_by_ship_mode
+- ✅ Table loaded: X rows
+- ✅ CSV uploaded: gs://...
+- ✅ Export completed
+
+### 6. Ellenőrzés - Scheduler History:
+
+```bash
+# GCP Console → Cloud Scheduler → Job → VIEW
+```
+
+Látod:
+- Execution history (utolsó 20 futás)
+- Success/Failure status
+- Execution time
+- Response codes
 
 ---
 
-## 🔄 Teljes End-to-End Flow
+## 📊 CSV fájlok struktúra
 
+### Bucket mappák:
 ```
-1. Google Drive Webhook
-   ↓
-2. File Processor Function (step-06)
-   ├─→ Download file from Drive
-   ├─→ Upload to GCS
-   ├─→ Load to BigQuery raw_data table
-   └─→ Publish Pub/Sub message
-       ↓
-3. Dataform Trigger Function (step-09) ← TE VAGY ITT! 🎯
-   ├─→ Receive Pub/Sub message
-   ├─→ Create Dataform compilation
-   ├─→ Trigger Dataform workflow
-   └─→ Log everything to BigQuery
-       ↓
-4. Dataform Workflow (step-08)
-   ├─→ Refresh monthly_orders_by_ship_mode
-   ├─→ Refresh monthly_orders_us_state
-   ├─→ Refresh monthly_favorite_product
-   ├─→ Refresh monthly_customer_segment_analysis
-   └─→ Refresh monthly_category_revenue_trend
-       ↓
-5. ✅ Aggregált táblák frissítve!
+ford-training-430008-{your-name}-csv-exports/
+├── monthly_orders_by_ship_mode/
+│   ├── 2024-01-15_060000.csv
+│   ├── 2024-01-15_070000.csv
+│   ├── 2024-01-15_080000.csv
+│   └── ...
+├── monthly_orders_us_state/
+│   ├── 2024-01-15_060000.csv
+│   └── ...
+├── monthly_favorite_product/
+│   └── ...
+├── monthly_customer_segment_analysis/
+│   └── ...
+└── monthly_category_revenue_trend/
+    └── ...
+```
+
+### Fájlnév formátum:
+```
+{timestamp}.csv
+# pl: 2024-01-15_060000.csv
+# Format: YYYY-MM-DD_HHMMSS
+```
+
+### CSV tartalom példa (monthly_orders_by_ship_mode):
+```csv
+year_month,ship_mode,total_sales,order_count
+2024-01,First Class,12345.67,89
+2024-01,Second Class,23456.78,123
+2024-01,Standard Class,34567.89,234
+2023-12,First Class,11111.11,78
+...
 ```
 
 ---
 
 ## 🗑️ Cleanup
 
-**Csak a step-09 resource-ok törlése:**
+**Csak a step-10 resource-ok törlése:**
 ```bash
 terraform destroy
 ```
 
+⚠️ **Figyelem:** Ez törli:
+- CSV export bucket-et (és az összes CSV fájlt!)
+- Cloud Function-t
+- Cloud Scheduler Job-ot
+- IAM binding-okat
+
 Ez NEM törli:
 - Service Account (step-02)
-- Storage Bucket (step-03)
-- BigQuery Dataset és Tables (step-04)
-- IAM Bindings (step-05)
-- File Processor Function és Pub/Sub (step-06)
-- Aggregált táblák és Dataform (step-08)
+- BigQuery Dataset és Tables (step-04, step-08)
+- Egyéb step-ek resource-ait
+
+**Csak a CSV fájlok törlése (bucket megtartása):**
+```bash
+gsutil rm -r gs://ford-training-430008-{your-name}-csv-exports/**
+```
 
 ---
 
 ## 📚 Mit tanultunk?
 
-- ✅ **Data source** használata (5 már létező resource)
-- ✅ **Cloud Functions Gen2** Pub/Sub trigger
-- ✅ **Event-driven architecture** (message → function → workflow)
-- ✅ **Dataform REST API** használata
-- ✅ **Compilation Result** és **Workflow Invocation** létrehozása
-- ✅ **OAuth2 authentication** (google.auth)
+- ✅ **Data source** használata (8 már létező resource)
+- ✅ **Cloud Scheduler** létrehozása és konfigurálása
+- ✅ **Cron expression** használata (`0 * * * *`)
+- ✅ **Timezone** beállítása (`Europe/Budapest`)
+- ✅ **Cloud Functions Gen2** HTTP trigger
+- ✅ **OIDC authentication** (Service Account token)
+- ✅ **Pandas** CSV export BigQuery-ből
+- ✅ **GCS strukturált feltöltés** (mappák + timestamp)
+- ✅ **Lifecycle rule** (30 napos retention)
 - ✅ **Retry policy** beállítása
-- ✅ **Environment variables** használata
-- ✅ **IAM jogosultságok** Pub/Sub trigger-hez
+- ✅ **Environment variables** átadása function-nek
+- ✅ **IAM jogosultságok** Scheduler és Function között
 - ✅ Multi-step Terraform projektek
 
 ---
@@ -311,61 +376,73 @@ Ez NEM törli:
 ## 🔐 IAM & Permissions
 
 ### Demo Service Account (step-02-ből):
-- ✅ Storage Object Admin (step-05)
+- ✅ Storage Object Admin (step-05 - eredeti bucket)
+- ✅ **Storage Object Admin** (step-10 - **ÚJ**, CSV export bucket)
 - ✅ BigQuery Data Editor (step-05 + step-08)
+- ✅ **BigQuery Data Viewer** (step-10 - **ÚJ**, aggregált táblák olvasása)
 - ✅ BigQuery Job User (step-05)
 - ✅ Pub/Sub Publisher (step-06)
-- ✅ **Pub/Sub Subscriber** (step-09 - **ÚJ**, Pub/Sub message fogadás)
-- ✅ **Dataform Editor** (step-09 - **ÚJ**, workflow indítás)
-- ✅ **Cloud Run Invoker** (step-09 - **ÚJ**, Gen2 function hívás)
-- ✅ **Service Account User** (step-09 - **ÚJ**, SA impersonation)
+- ✅ Pub/Sub Subscriber (step-09)
+- ✅ Dataform Editor (step-09)
+- ✅ **Cloud Run Invoker** (step-10 - **ÚJ**, Scheduler -> Function)
 
-### Pub/Sub Service Account (GCP managed):
-- ✅ **Cloud Run Invoker** (step-09 - **ÚJ**, Gen2 function push trigger)
+### Cloud Scheduler (GCP managed):
+- Használja a Demo Service Account OIDC token-jét a function híváshoz
 
 ---
 
 ## ⚠️ Fontos megjegyzések
 
-- **Pub/Sub Trigger:** Gen2 function automatikusan létrehoz egy push subscription-t
-- **Retry Policy:** `RETRY_POLICY_RETRY` - újrapróbálkozás hiba esetén
-- **Dataform API:** REST API használat (Python SDK még nincs)
-- **Workspace path:** Teljes path kell (`projects/.../workspaces/...`)
-- **Compilation:** Minden workflow előtt új compilation kell
-- **Authentication:** OAuth2 token (google.auth.default)
-- **Timeout:** 60 másodperc (elég a Dataform API hívásokhoz)
-- **Memory:** 256 MB (elég a REST API hívásokhoz)
-- **Scaling:** 0-3 instance (event-driven, automatikus)
+- **HTTP Trigger:** A function HTTP-n keresztül érhető el (nem Pub/Sub)
+- **OIDC Auth:** Cloud Scheduler Service Account token-nel hívja a function-t
+- **Pandas export:** Kis adatmennyiségre optimalizált (néhány ezer sor)
+- **Memory:** 512 MB elég a Pandas DataFrame-ekhez
+- **Timeout:** 5 perc (300 sec) - elég az 5 tábla exportálásához
+- **Lifecycle rule:** 30 nap után automatikusan törli a régi CSV-ket
+- **Timezone:** Europe/Budapest (CET/CEST)
+- **Cron:** `0 * * * *` = minden óra 0. percében (pl. 06:00, 07:00, 08:00...)
+- **Bucket struktúra:** Táblanként külön mappa
+- **Fájlnév:** Timestamp (YYYY-MM-DD_HHMMSS.csv)
+- **BigQuery:** Teljes tábla export (nincs WHERE filter)
 - **Ez a step data source-okat használ** - nem hozza létre újra a már létező resource-okat!
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Function nem indul el:
-1. Ellenőrizd a Pub/Sub subscription-t (létrejött-e)
-2. Ellenőrizd az IAM jogosultságokat (Pub/Sub SA → Cloud Run Invoker)
-3. Nézd meg a function logs-ot (van-e hiba)
+### Scheduler nem indul el:
+1. Ellenőrizd az ütemezést: `gcloud scheduler jobs describe {job-name}`
+2. Ellenőrizd, hogy a job enabled-e (GCP Console)
+3. Nézd meg a Scheduler logs-ot (van-e hiba)
 
-### Dataform workflow nem indul:
-1. Ellenőrizd a `dataform_repository` és `dataform_workspace` neveket
-2. Ellenőrizd a Demo SA jogosultságait (Dataform Editor)
-3. Nézd meg a function logs-ot (API hiba üzenetek)
-4. Ellenőrizd, hogy a workspace létezik-e (GCP Console → Dataform)
+### Function nem válaszol:
+1. Ellenőrizd a function deployment status-át
+2. Nézd meg a function logs-ot (cold start időt)
+3. Ellenőrizd az OIDC token-t (Service Account jogosultság)
+
+### CSV nem jelenik meg a bucket-ben:
+1. Ellenőrizd a function logs-ot (BigQuery query, upload hiba)
+2. Ellenőrizd a Storage IAM jogosultságokat (objectAdmin)
+3. Ellenőrizd a bucket nevet (environment variable)
 
 ### "Permission denied" hiba:
-1. Ellenőrizd a Demo SA jogosultságait:
-   - Pub/Sub Subscriber ✅
-   - Dataform Editor ✅
+1. Demo SA jogosultságok:
+   - BigQuery Data Viewer ✅
+   - Storage Object Admin (CSV bucket) ✅
    - Cloud Run Invoker ✅
 2. Várj 1-2 percet (IAM propagation)
 
+### CSV üres vagy hiányos:
+1. Ellenőrizd, hogy a Dataform workflow lefutott-e (step-08)
+2. Nézd meg a BigQuery táblák adatait (van-e adat)
+3. Ellenőrizd a function logs-ot (row count)
+
 ---
 
-## 🎯 **Összefoglalva - Step 09 fájlok:**
+## 🎯 **Összefoglalva - Step 10 fájlok:**
 
 ```
-step-09-dataform-trigger/
+step-10-scheduled-export/
 ├── README.md                        ← TE VAGY ITT! 📖
 ├── providers.tf
 ├── variables.tf
@@ -374,24 +451,32 @@ step-09-dataform-trigger/
 ├── outputs.tf
 ├── terraform.tfvars.example
 └── function_source/
-    ├── main.py                      ← Dataform trigger Python kód
+    ├── main.py                      ← CSV export Python kód
     └── requirements.txt             ← Python függőségek
 ```
 
 ---
 
 ## ➡️ Következő lépés
-👉 **Teljes workflow tesztelése** (Drive → File Processor → Dataform Trigger → Dataform Workflow)
+👉 **Teljes pipeline tesztelése** (Drive → File Processor → Dataform Trigger → Dataform Workflow → **CSV Export**)
 
 ---
 
 ## 🎉 Gratulálunk!
 
-Sikeresen létrehoztad az automatikus Dataform trigger-t! Most már minden új fájl feldolgozása után automatikusan frissülnek az aggregált táblák! 🚀📊
+Sikeresen létrehoztad az automatikus CSV export rendszert! Most már óránként automatikusan exportálódnak az aggregált táblák CSV formátumba! 🚀📊
 
 **Teljes pipeline:**
 1. ✅ File upload → Drive webhook
 2. ✅ File Processor → GCS + BigQuery raw_data
 3. ✅ Pub/Sub message → Dataform Trigger
 4. ✅ Dataform Workflow → Aggregált táblák frissítése
-5. ✅ Minden lépés naplózva BigQuery-ben
+5. ✅ **Cloud Scheduler → CSV Export → GCS** ← **TE VAGY ITT! 🎯**
+6. ✅ Minden lépés naplózva BigQuery-ben
+
+**Use case-ek:**
+- 📊 Dashboard adatforrás (Looker Studio, Tableau, Power BI)
+- 📧 Email mellékletek
+- 📤 Külső rendszerek integráció
+- 💾 Offline backup
+- 📈 Historikus adatok archívum
