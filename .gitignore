@@ -4,5 +4,5 @@
 */*/terraform.tfstate*
 */*/.terraform.lock.hcl
 */*/.terraform/
-/terraform_demo_1/step-06-cloud-function-processor/function_source.zip
+/*/*/function_source.zip
 .continue

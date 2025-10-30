@@ -123,7 +123,7 @@ terraform apply
 2. Keresd meg: `{your-name}-file-processor`
 3. Kattints rá → **EDIT** gomb (felül)
 4. Görgess le a **SECURITY** részhez
-5. **Authentication:** Válaszd az **"Allow unauthenticated invocations"** opciót
+5. **Authentication:** Válaszd az **"Allow public access"** opciót
 6. Kattints a **NEXT** gombra (alul)
 7. Kattints a **DEPLOY** gombra
 
@@ -159,7 +159,7 @@ terraform output
 1. GCP Console → **Cloud Functions** (Gen2 címke látszik)
 2. Keresd meg: `{your-name}-file-processor`
 3. **TRIGGER** fül → **TRIGGER URL** (ez az outputs-ban is szerepel)
-4. **SECURITY** fül → Ellenőrizd: **"Allow unauthenticated invocations"** ✅
+4. **SECURITY** fül → Ellenőrizd: **"Allow public access"** ✅
 5. **SOURCE** fül → Nézd meg a Python kódot
 6. **LOGS** fül → Ide jönnek a function logok
 7. **METRICS** fül → Gen2 metrics (invocations, memory, CPU)

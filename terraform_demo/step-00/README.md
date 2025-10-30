@@ -52,7 +52,7 @@ Másold fel a letöltött kulcsfájlt a CloudShell `/home/<user_home>/` pathra `
 git clone https://github.com/nyika-janos/ford-training-vol2.git
 
 # Lépj be a terraform demo könyvtárba
-cd ford-training-vol2/terraform_demo_1
+cd ford-training-vol2/terraform_demo
 ```
 
 ---

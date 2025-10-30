@@ -775,7 +775,7 @@ terraform apply
 
 ```bash
 # GCP Console → Cloud Run → {your-name}-csv-browser → EDIT
-# SECURITY → "Allow unauthenticated invocations" ✅ → DEPLOY
+# SECURITY → "Allow public access" ✅ → DEPLOY
 ```
 
 ---

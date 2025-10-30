@@ -96,7 +96,7 @@ ls -la your_name.json
 **Fájlok ellenőrzése:**
 ```bash
 # Navigálj a step-07 könyvtárba
-cd ~/ford-training-vol2/terraform_demo_1/step-07-drive-webhook/
+cd ~/ford-training-vol2/terraform_demo/step-07-drive-webhook/
 
 # Ellenőrizd a fájlokat
 ls -la

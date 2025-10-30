@@ -181,7 +181,7 @@ terraform apply
 2. Keresd meg: `{your-name}-csv-browser`
 3. Kattints rá → **EDIT** gomb (felül, a deploy gomb mellett)
 4. Görgess le a **SECURITY** részhez
-5. **Authentication:** Válaszd az **"Allow unauthenticated invocations"** opciót ✅
+5. **Authentication:** Válaszd az **"Allow public access"** opciót ✅
 6. Kattints a **DEPLOY** gombra (alul)
 
 ⏱️ Várj ~30 másodpercet a deployment-re.
@@ -196,7 +196,7 @@ terraform apply
 
 **Ellenőrzés:**
 - GCP Console → Cloud Run → Service → **SECURITY** fül
-- **Authentication:** "Allow unauthenticated invocations" ✅
+- **Authentication:** "Allow public access" ✅
 
 ### 10. Ellenőrzés
 
@@ -240,7 +240,7 @@ xdg-open $CLOUD_RUN_URL  # Linux
 1. GCP Console → **Cloud Run**
 2. Keresd meg: `{your-name}-csv-browser`
 3. **URL:** Kattints rá → megnyílik a webes alkalmazás
-4. **SECURITY** fül → Ellenőrizd: **"Allow unauthenticated invocations"** ✅
+4. **SECURITY** fül → Ellenőrizd: **"Allow public access"** ✅
 5. **REVISIONS** fül → Látod az aktív revision-t
 6. **METRICS** fül → Request count, latency, errors
 7. **LOGS** fül → Alkalmazás logok
@@ -418,7 +418,7 @@ gcloud run services logs read ${SERVICE_NAME} --region=europe-west1
 curl -I $(terraform output -raw cloud_run_url)
 
 # Ha 403 → nincs beállítva az unauthenticated access
-# Lásd: 9. lépés (SECURITY → "Allow unauthenticated invocations")
+# Lásd: 9. lépés (SECURITY → "Allow public access")
 ```
 
 ### Webes alkalmazás üres (nincs fájl):

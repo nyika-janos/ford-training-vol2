@@ -185,14 +185,15 @@ https://console.cloud.google.com/bigquery/dataform?project=${var.project_id}
 ### 4. Töltsd fel a generált SQLX fájlokat:
 A fájlok helye: `${path.module}/generated_dataform/`
 
-Ha nem létezne, akkor hozd létre a `definitions/` foldert a gyökérbe és a `workflow_settings.yaml` fájlt a következő tartalommal:
+Ha nem létezne, a `definitions/` folder és a `workflow_settings.yaml` fájl, akkor Inicializáld a worskpace-t:
 
+Egészítsd ki a workflow_settings.yaml-t a hiányzó értékekkel, hogy így nézzen ki a szerkezete:
 ```
 defaultProject: ${var.project_id}
 defaultLocation: ${var.region}
 defaultDataset: ${data.google_bigquery_dataset.demo_dataset.dataset_id}
 defaultAssertionDataset: dataform_assertions
-dataformCoreVersion: 3.0.0
+dataformCoreVersion: 3.0.26
 ```
 
 Hozd létre mind az 5 fájlt a workspace `definitions/` mappájába:
