@@ -23,10 +23,11 @@ Minden lépés egy külön könyvtárban van, és **építkezik az előző lép�
 | **04** | `step-04-bigquery/` | BigQuery Dataset és 3 Table | 4 |
 | **05** | `step-05-iam/` | IAM jogosultságok (Bucket, BQ, Project) | 3 |
 | **06** | `step-06-cloud-function-processor/` | File Processor Function + Pub/Sub | 6 |
+| **06** | `step-07-drive-registration/` | Google Drive webhook regisztráció | 0 |
 | **08** | `step-08-dataform/` | BigQuery Aggregált Táblák (5 db) + Dataform | 9 |
 | **09** | `step-09-dataform-trigger/` | Dataform Trigger Function (Pub/Sub) | 8 |
 | **10** | `step-10-scheduled-export/` | CSV Export Function + Cloud Scheduler | 9 |
-| **11** | `step-11-website/` | CSV Browser Website (Cloud Run + Flask) | 3 |
+| **11** | `step-11-csv-browser/` | CSV Browser Website (Cloud Run + Flask) | 3 |
 
 **Összesen: ~44 GCP resource + 1 Docker image + 1 Webes alkalmazás**
 
@@ -36,11 +37,11 @@ Minden lépés egy külön könyvtárban van, és **építkezik az előző lép�
 
 ```
 📁 Google Drive
-    ↓ (webhook)
+    ↓ (webhook) (Step 07)
 🔵 Cloud Function: File Processor (Step 06)
     ├─→ 📦 GCS: Raw Files
     ├─→ 📊 BigQuery: raw_data table
-    └─→ 📢 Pub/Sub: file-processed topic
+    └─→ 📢 Pub/Sub: demo-topic-raw topic
          ↓
 🔵 Cloud Function: Dataform Trigger (Step 09)
     ├─→ 🔨 Dataform: Compilation
