@@ -23,7 +23,7 @@ Minden lépés egy külön könyvtárban van, és **építkezik az előző lép�
 | **04** | `step-04-bigquery/` | BigQuery Dataset és 3 Table | 4 |
 | **05** | `step-05-iam/` | IAM jogosultságok (Bucket, BQ, Project) | 3 |
 | **06** | `step-06-cloud-function-processor/` | File Processor Function + Pub/Sub | 6 |
-| **06** | `step-07-drive-registration/` | Google Drive webhook regisztráció | 0 |
+| **07** | `step-07-drive-registration/` | Google Drive webhook regisztráció | 0 |
 | **08** | `step-08-dataform/` | BigQuery Aggregált Táblák (5 db) + Dataform | 9 |
 | **09** | `step-09-dataform-trigger/` | Dataform Trigger Function (Pub/Sub) | 8 |
 | **10** | `step-10-scheduled-export/` | CSV Export Function + Cloud Scheduler | 9 |
