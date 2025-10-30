@@ -227,12 +227,22 @@ python3 register_webhook.py
 
 ---
 
+---
+
 ### **9. Tesztelés**
 
 **Töltsd fel egy CSV fájlt a Drive folderbe:**
 
+**Opció 1: Saját CSV fájl**
 1. Nyisd meg a `Terraform Demo Upload` foldert
-2. Töltsd fel: `superstore_final_dataset_1.csv`
+2. Töltsd fel: bármilyen CSV fájlt
+
+**Opció 2: Demo adatok használata**
+1. A repository-ban az `other/sample_data.zip` tartalmaz egy nagy adatfájlt 3 részre bontva
+2. Csomagold ki a ZIP-et
+3. Töltsd fel az egyik CSV fájlt (pl. `superstore_final_dataset_1.csv`) a Drive folderbe
+4. Ezzel tesztelheted, hogy megtriggerelődik-e a file processor Cloud Function
+
 
 **Ellenőrzés CloudShell-ben:**
 

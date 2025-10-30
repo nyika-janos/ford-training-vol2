@@ -66,7 +66,7 @@ Minden lépés egy külön könyvtárban van, és **építkezik az előző lép�
          └─→ ⬇️ Fájl letöltés
 ```
 
-![Teljes folyamati ábra](folyamat.jpg)
+![Teljes folyamati ábra](other/folyamat.jpg)
 
 ---
 
