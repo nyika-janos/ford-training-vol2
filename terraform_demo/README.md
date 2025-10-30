@@ -66,6 +66,10 @@ Minden lépés egy külön könyvtárban van, és **építkezik az előző lép�
          └─→ ⬇️ Fájl letöltés
 ```
 
+<p align="center">
+  <img src="folyamat.jpg" alt="Teljes folyamati ábra" width="400">
+</p>
+
 ---
 
 ## 🚀 Gyors Start
